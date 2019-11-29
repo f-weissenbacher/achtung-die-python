@@ -3,13 +3,13 @@ from math import sin, cos, pi
 import random
 
 
-speed = 0.15
+speed = 0.45
 dtheta = 0.3
 
 radius = 5
 path_radius = 5
 
-screen_size = (3*240,3*180)
+screen_size = (5*240,5*180)
 
 p1_color = (255,255,255)
 p2_color = (0,255,255)
@@ -47,9 +47,9 @@ def main():
     p1_pos = [random.randint(10,screen_size[0]), random.randint(10,screen_size[1])]#[32,32]
     p2_pos = [random.randint(10,screen_size[0]), random.randint(10,screen_size[1])]#[64,64]
 
-    p1_theta = 2*pi*random.random()
-
-    p2_theta = 2*pi*random.random()
+    
+    p1_theta = choose_angle(p1_pos)#2*pi*random.random()
+    p2_theta = choose_angle(p2_pos)#2*pi*random.random()
 
     p1_path = []
     p2_path = []
@@ -187,5 +187,18 @@ def check_path_collision(path1, path2, pos):
         return False
 
 
+def choose_angle(pos):
+    angle = 0
+    factor = 0.5*(-.5+random.random())
+    if pos[0] < screen_size[0]/2. and pos[1] < screen_size[1]/2.:
+        angle = 0.25*pi + factor
+    elif pos[0] < screen_size[0]/2. and pos[1] > screen_size[1]/2.:
+        angle = 0.75*pi + factor
+    elif pos[0] > screen_size[0]/2. and pos[1] > screen_size[1]/2.:
+        angle = 1.25*pi + factor
+    elif pos[0] > screen_size[0]/2. and pos[1] < screen_size[1]/2.:
+        angle = 1.75*pi + factor
+
+    return angle
 if __name__ == "__main__":
     main()
