@@ -28,7 +28,6 @@ def main():
 
     running = True
 
-
     empty_path_change = 0.0005
 
     empty_time_max = int(50/speed)
@@ -73,24 +72,6 @@ def main():
                     p2_theta += dtheta
                 if event.key == pygame.K_w:
                     p2_theta -= dtheta
-
-           
-
-        
-        """
-        keys_pressed = pygame.key.get_pressed()
-
-        
-        if keys_pressed[pygame.K_LEFT]:
-            p1_theta += dtheta
-        elif keys_pressed[pygame.K_RIGHT]:
-            p1_theta -= dtheta
-
-        if keys_pressed[pygame.K_q]:
-            p2_theta += dtheta
-        elif keys_pressed[pygame.K_w]:
-            p2_theta -= dtheta
-        """
 
 
         if random.random() < empty_path_change and not p1_draw_empty:
