@@ -1,12 +1,14 @@
 # Import the pygame module
 import logging
 import random
-import pygame
+import numpy as np
 
 # Import pygame.locals for easier access to key coordinates
 # Updated to conform to flake8 and black standards
-
+import pygame
 from pygame.locals import RLEACCEL
+import pygame.freetype  # Import the freetype module.
+
 
 # Define constants for the screen width and height
 SCREEN_WIDTH = 800
@@ -16,17 +18,17 @@ from math import pi,sin,cos,sqrt, ceil
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, idx=1, init_pos=(0,0), init_angle=0.0, speed=100.0, color=(255,10,10),
+    def __init__(self, idx=1, init_pos=(0.,0.), init_angle=0.0, speed=100.0, color=(255,10,10),
                  steer_left_key=pygame.K_LEFT, steer_right_key=pygame.K_DOWN):
         super(Player, self).__init__()
         self.idx = idx
-        self.pos = pygame.Vector2(init_pos) # x-position in game world (pixel coordinates)
-        self.vel_vec = pygame.Vector2()
+        self.pos = np.asarray(init_pos, dtype=float) # x-position in game world (pixel coordinates)
         self.speed = speed # distance travelled per game second
-        self.vel_vec.from_polar((speed, init_angle))
-        #self.angle = init_angle # angle of velocity vector
+        self.angle = init_angle # angle of velocity vector
         self.steer_left_key = steer_left_key
         self.steer_right_key = steer_right_key
+        self.color = color
+        #self.score = 0 # Number of points earned by staying alive
 
         # Setup sprite == filled circle
         self.radius = 4
@@ -34,15 +36,22 @@ class Player(pygame.sprite.Sprite):
         pygame.draw.circle(self.surf, color, (self.radius,self.radius), self.radius, 0)
         self.surf.set_colorkey((0,0,0), RLEACCEL) # set transparent color
         self.rect = self.surf.get_rect(center=self.pos)
-        self.history = [self.rect.copy()]
+        self.history = [self.pos.copy()]
+
+    def __eq__(self, other):
+        return self.idx == other.idx
+
+    @property
+    def vel_vec(self):
+        return self.speed * np.asarray([cos(self.angle), sin(self.angle)])
 
     def apply_steering(self, pressed_keys, dphi:float):
         if pressed_keys[self.steer_left_key]:
             logging.debug("steering to the left")
-            self.vel_vec.rotate_rad_ip(-dphi)
+            self.angle -= dphi
         elif pressed_keys[self.steer_right_key]:
             logging.debug("steering to the right")
-            self.vel_vec.rotate_rad_ip(dphi)
+            self.angle += dphi
 
     # let player move for dt seconds
     def move(self, dt):
@@ -50,7 +59,7 @@ class Player(pygame.sprite.Sprite):
         self.pos += dpos
         #self.rect.move_ip(dx, dy) # update sprite
         logging.debug(f"moving Player {self.idx} by {dpos} to {self.pos}")
-        self.history.append((self.rect.copy())) # save updated position in history
+        self.history.append(self.pos.copy()) # save updated position in history
 
     def draw(self, surface):
         """ Draw on surface """
@@ -60,12 +69,28 @@ class Player(pygame.sprite.Sprite):
     def check_self_collision(self, dt_per_frame):
         num_recent_frames_to_skip = int(ceil(5 * self.radius / (self.speed * dt_per_frame)))
         logging.debug(f"skipping {num_recent_frames_to_skip} newest frames")
-        colliding_frames = self.rect.collidelistall(self.history[:-num_recent_frames_to_skip])
-        num_colliding_frames = len(colliding_frames)
+        if len(self.history) <= num_recent_frames_to_skip:
+            return False
+
+        sq_dist = np.sum((np.asarray(self.history[:-num_recent_frames_to_skip]) - self.pos)**2, axis=1)
+        frame_collides = sq_dist < self.radius ** 2
+        num_colliding_frames = np.sum(frame_collides)
         if num_colliding_frames > 0:
-            logging.debug(f"The following {num_colliding_frames} are colliding: {colliding_frames}")
-        return
-        #return self.rect.collidelist(self.history[:-num_recent_frames_to_skip])
+            logging.debug(f"Collided with own history from frames {np.argwhere(frame_collides).flatten()}")
+            return True
+        else:
+            return False
+
+
+    def check_player_collision(self, other):
+        sq_dist = np.sum((np.asarray(other.history) - self.pos)**2, axis=1)
+        frame_collides = sq_dist < self.radius ** 2
+        num_colliding_frames = np.sum(frame_collides)
+        if num_colliding_frames > 0:
+            logging.debug(f"Player {self.idx} collided with frames {np.argwhere(frame_collides).flatten()} of player {other.idx}")
+            return True
+        else:
+            return False
 
 
 
@@ -90,11 +115,16 @@ class AchtungDieKurveGame:
         self.spawn_safety_distance = 0.5 * self.min_turn_radius
         #self.min_turn_radius = 100  # minimum turn radius in pixels
         self.player_turn_rate = self.player_speed / self.min_turn_radius # turn rate (radians per second)
-        self.players = pygame.sprite.Group()
+        self.players = []
+        self.active_players = []
+        self.scoreboard = {idx:0 for idx in AchtungDieKurveGame.player_keys}
+        #self.winner = None
         self.target_fps = 30
         self.dt_per_frame = 1/self.target_fps
         self.dphi_per_frame = self.player_turn_rate * self.dt_per_frame # maximum steering angle per frame
         #logging.info(f"dphi_per_frame = {self.dphi_per_frame * 180/pi}")
+        # Debug flags
+        self.run_until_last_player_dies = True
 
     @staticmethod
     def _roll_random_angle():
@@ -107,7 +137,7 @@ class AchtungDieKurveGame:
             y = self.min_turn_radius + (self.screen_height - 2 * self.min_turn_radius) * random.random()
 
             for p in self.players:
-                dist = sqrt((x - p.pos.x)**2 + (y - p.pos.y)**2)
+                dist = sqrt((x - p.pos[0])**2 + (y - p.pos[1])**2)
                 if dist < self.spawn_safety_distance:
                     logging.debug("re-rolling start position")
                     break
@@ -138,12 +168,27 @@ class AchtungDieKurveGame:
 
         p = Player(idx=idx, init_pos=init_pos, speed=self.player_speed, init_angle=init_angle, color=color,
                    steer_left_key=self.player_keys[idx]['left'], steer_right_key=self.player_keys[idx]['right'])
-        self.players.add(p)
+
+        self.players.append(p)
+        self.active_players.append(p)
+
+
+    def disable_player(self, p):
+        """ Remove player from list of active players but keep its history"""
+        self.active_players.remove(p)
+        # Increment scores of all remaining players
+        for op in self.active_players:
+            self.scoreboard[op.idx] += 1
+
+        #self.update_scoreboard() # TODO: Create scoreboard display
 
 
     def run(self):
         # Initialize pygame
         pygame.init()
+
+        # Fonts
+        game_font = pygame.freetype.SysFont(pygame.freetype.get_default_font(), 30)
 
         # Create the screen object
         # The size is determined by the constant SCREEN_WIDTH and SCREEN_HEIGHT
@@ -186,26 +231,42 @@ class AchtungDieKurveGame:
             # Refill screen to remove old player/enemy positions
             #screen.fill((0,0,0))
 
-            for p in self.players:
+            for p in self.active_players:
                 # Process player input
                 p.apply_steering(pressed_keys, self.dphi_per_frame)
                 # Update player positions
                 p.move(self.dt_per_frame)
                 # Draw player at its current position
                 p.draw(screen)
+
                 # Detect wall collisions
                 if self.detect_wall_collision(p):
                     logging.info(f"Player {p.idx} hit the walls")
-                    p.kill()
+                    self.disable_player(p)
 
                 # Check self-collision
-                if p.check_self_collision(self.dt_per_frame):
+                elif p.check_self_collision(self.dt_per_frame):
                     logging.info(f"Player {p.idx} collided with itself")
-                    p.kill()
+                    self.disable_player(p)
 
+                else:
+                    # Check for collision with other players
+                    for p2 in self.players:
+                        if p == p2:
+                            continue
+                        elif p.check_player_collision(p2):
+                            logging.info(f"Player {p.idx} collided with player {p2.idx}")
+                            self.disable_player(p)
+                            break
 
-            if len(self.players) < 1: # TODO: Change to '<2' later on
-                logging.info("No more active players")
+            if len(self.active_players) == 1:
+                winner = self.active_players[0]
+                win_msg = f"Player {winner.idx} won!"
+                logging.info(win_msg)
+                game_font.render_to(screen, (int(0.25*SCREEN_WIDTH), int(0.5*SCREEN_HEIGHT)), win_msg, winner.color)
+                if not self.run_until_last_player_dies:
+                    running = False
+            elif len(self.active_players) == 0:
                 running = False
 
             # Render the display (flip everything to the display)
@@ -214,6 +275,8 @@ class AchtungDieKurveGame:
             # Ensure program maintains a rate of 30 frames per second
             clock.tick(self.target_fps)
             frame_num += 1
+
+        pygame.time.wait(1500)
 
 
 
