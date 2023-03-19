@@ -122,7 +122,7 @@ class Player(pygame.sprite.Sprite):
             return False
 
         sq_dist = np.sum((np.asarray(self.trail[:-num_recent_frames_to_skip]) - self.pos) ** 2, axis=1)
-        frame_collides = sq_dist < self.radius ** 2
+        frame_collides = sq_dist < 0.8*self.radius ** 2
         num_colliding_frames = np.sum(frame_collides)
         if num_colliding_frames > 0:
             logging.debug(f"Collided with own history from frames {np.argwhere(frame_collides).flatten()}")
@@ -152,9 +152,14 @@ class Player(pygame.sprite.Sprite):
 class AchtungDieKurveGame:
 
     player_keys = {1:{'left':pygame.K_LEFT, 'right':pygame.K_DOWN},
-                   2:{'left':pygame.K_1, 'right':pygame.K_q}}
+                   2:{'left':pygame.K_1, 'right':pygame.K_q},
+                   3:{'left':pygame.K_1, 'right':pygame.K_q},
+                   4:{'left':pygame.K_1, 'right':pygame.K_q},
+                   5:{'left':pygame.K_1, 'right':pygame.K_q},
+                   6:{'left':pygame.K_1, 'right':pygame.K_q},
+                   }
 
-    player_colors = {1:(255,10,10), 2:(10,255,10)}
+    player_colors = {1:(255,10,10), 2:(10,255,10), 3:(200,100,20), 4:(0,100,20), 5:(50,100,150), 6:(0,100,20)}
 
     def __init__(self, target_fps=30, game_speed_factor=1.0):
         self.screen_width = 800
@@ -267,6 +272,11 @@ class AchtungDieKurveGame:
         # Create player 1
         self.spawn_player(1, init_pos=(100,400), init_angle=0.0)
         self.spawn_player(2)
+        self.spawn_player(3)
+        self.spawn_player(4)
+        self.spawn_player(5)
+        self.spawn_player(6)
+
 
         # Variable to keep the main loop running
         running = True
