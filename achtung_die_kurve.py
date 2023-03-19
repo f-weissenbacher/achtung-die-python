@@ -18,12 +18,27 @@ from math import pi,sin,cos,sqrt, ceil
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, idx=1, init_pos=(0.,0.), init_angle=0.0, speed=100.0, color=(255,10,10),
-                 steer_left_key=pygame.K_LEFT, steer_right_key=pygame.K_DOWN):
+    def __init__(self, idx=1, init_pos=(0.,0.), init_angle=0.0, dist_per_tick=5.0, color=(255,10,10),
+                 steer_left_key=pygame.K_LEFT, steer_right_key=pygame.K_DOWN,
+                 hole_width=3.0, startblock_length=100., min_dist_between_holes=200., max_dist_between_holes=800.):
+        """
+
+        Args:
+            idx:
+            init_pos:
+            init_angle:
+            dist_per_tick:
+            color:
+            steer_left_key:
+            steer_right_key:
+            hole_width: width of trail holes in multiples of player diameter
+        """
+
         super(Player, self).__init__()
         self.idx = idx
         self.pos = np.asarray(init_pos, dtype=float) # x-position in game world (pixel coordinates)
-        self.speed = speed # distance travelled per game second
+        self.dist_per_tick = dist_per_tick
+        self.dist_travelled = 0.0 # total distance travelled
         self.angle = init_angle # angle of velocity vector
         self.steer_left_key = steer_left_key
         self.steer_right_key = steer_right_key
@@ -31,19 +46,32 @@ class Player(pygame.sprite.Sprite):
         #self.score = 0 # Number of points earned by staying alive
 
         # Setup sprite == filled circle
-        self.radius = 4
+        self.radius = 3
         self.surf = pygame.Surface((2*self.radius,2*self.radius))
         pygame.draw.circle(self.surf, color, (self.radius,self.radius), self.radius, 0)
         self.surf.set_colorkey((0,0,0), RLEACCEL) # set transparent color
         self.rect = self.surf.get_rect(center=self.pos)
-        self.history = [self.pos.copy()]
+        self.trail = [self.pos.copy()] # Trail behind player
+
+        # Hole settings
+        self.hole_width = 2 * self.radius * hole_width # hole width in game units (px)
+        #self.active_hole = False # If true, player does currently draw a "hole" as trail
+        self.size_of_active_hole = 0.0
+        self.startblock_length = startblock_length # number of ticks after the start no holes can be activated
+        self.min_dist_between_holes = min_dist_between_holes
+        self.max_dist_between_holes = max_dist_between_holes
+        self.dist_to_next_hole = self._roll_dist_to_next_hole()
 
     def __eq__(self, other):
         return self.idx == other.idx
 
     @property
     def vel_vec(self):
-        return self.speed * np.asarray([cos(self.angle), sin(self.angle)])
+        return self.dist_per_tick * np.asarray([cos(self.angle), sin(self.angle)])
+
+    @property
+    def active_hole(self):
+        return self.dist_to_next_hole <= 0.0
 
     def apply_steering(self, pressed_keys, dphi:float):
         if pressed_keys[self.steer_left_key]:
@@ -53,26 +81,47 @@ class Player(pygame.sprite.Sprite):
             logging.debug("steering to the right")
             self.angle += dphi
 
-    # let player move for dt seconds
-    def move(self, dt):
-        dpos = self.vel_vec * dt # change in position
+    def _roll_dist_to_next_hole(self):
+        if self.dist_travelled < self.startblock_length:
+            dist = self.startblock_length + self.max_dist_between_holes * random.random()
+        else:
+            width = self.max_dist_between_holes - self.min_dist_between_holes
+            dist = self.min_dist_between_holes + width * random.random()
+
+        logging.debug(f"Next hole for Player {self.idx} in {int(dist/self.dist_per_tick)} ticks")
+        return dist
+
+
+    # move player forward (distance travelled during 1 tick)
+    def move(self):
+        dpos = self.vel_vec # change in position
         self.pos += dpos
+        self.dist_travelled += self.dist_per_tick
+        self.dist_to_next_hole -= self.dist_per_tick
         #self.rect.move_ip(dx, dy) # update sprite
         logging.debug(f"moving Player {self.idx} by {dpos} to {self.pos}")
-        self.history.append(self.pos.copy()) # save updated position in history
+        if self.active_hole:
+            logging.debug(f"active hole for Player {self.idx}")
+            self.trail.append(np.array([np.nan]*2))
+            if self.dist_to_next_hole < -self.hole_width:
+                # Hole ends with this tick, roll distance to next hole
+                self.dist_to_next_hole = self._roll_dist_to_next_hole()
+        else:
+            self.trail.append(self.pos.copy()) # save updated position in history
 
     def draw(self, surface):
         """ Draw on surface """
         # blit yourself at your current position
-        surface.blit(self.surf, self.pos)
+        if not self.active_hole:
+            surface.blit(self.surf, self.pos)
 
-    def check_self_collision(self, dt_per_frame):
-        num_recent_frames_to_skip = int(ceil(5 * self.radius / (self.speed * dt_per_frame)))
+    def check_self_collision(self):
+        num_recent_frames_to_skip = int(ceil(5 * self.radius / self.dist_per_tick))
         logging.debug(f"skipping {num_recent_frames_to_skip} newest frames")
-        if len(self.history) <= num_recent_frames_to_skip:
+        if len(self.trail) <= num_recent_frames_to_skip:
             return False
 
-        sq_dist = np.sum((np.asarray(self.history[:-num_recent_frames_to_skip]) - self.pos)**2, axis=1)
+        sq_dist = np.sum((np.asarray(self.trail[:-num_recent_frames_to_skip]) - self.pos) ** 2, axis=1)
         frame_collides = sq_dist < self.radius ** 2
         num_colliding_frames = np.sum(frame_collides)
         if num_colliding_frames > 0:
@@ -83,7 +132,7 @@ class Player(pygame.sprite.Sprite):
 
 
     def check_player_collision(self, other):
-        sq_dist = np.sum((np.asarray(other.history) - self.pos)**2, axis=1)
+        sq_dist = np.sum((np.asarray(other.trail) - self.pos) ** 2, axis=1)
         frame_collides = sq_dist < self.radius ** 2
         num_colliding_frames = np.sum(frame_collides)
         if num_colliding_frames > 0:
@@ -107,22 +156,26 @@ class AchtungDieKurveGame:
 
     player_colors = {1:(255,10,10), 2:(10,255,10)}
 
-    def __init__(self):
+    def __init__(self, target_fps=30, game_speed_factor=1.0):
         self.screen_width = 800
         self.screen_height = 600
-        self.player_speed = 0.1 * self.screen_width # pixels travelled per second
         self.min_turn_radius = 0.05 * self.screen_width # minimum turn radius in pixels
         self.spawn_safety_distance = 0.5 * self.min_turn_radius
         #self.min_turn_radius = 100  # minimum turn radius in pixels
+        self.player_speed = game_speed_factor * 0.075 * self.screen_width # pixels travelled per second of game time
         self.player_turn_rate = self.player_speed / self.min_turn_radius # turn rate (radians per second)
+
+        self.target_fps = target_fps
+        dt_per_tick = 1/self.target_fps
+        self.current_frame = -1 # game has not been started yet
+        self.dist_per_tick = self.player_speed * dt_per_tick # distance travelled by player during 1 tick
+        self.dphi_per_tick = self.player_turn_rate * dt_per_tick # maximum steering angle per frame
+        #logging.info(f"dphi_per_tick = {self.dphi_per_tick * 180/pi}")
+
         self.players = []
         self.active_players = []
         self.scoreboard = {idx:0 for idx in AchtungDieKurveGame.player_keys}
-        #self.winner = None
-        self.target_fps = 30
-        self.dt_per_frame = 1/self.target_fps
-        self.dphi_per_frame = self.player_turn_rate * self.dt_per_frame # maximum steering angle per frame
-        #logging.info(f"dphi_per_frame = {self.dphi_per_frame * 180/pi}")
+
         # Debug flags
         self.run_until_last_player_dies = True
 
@@ -166,7 +219,7 @@ class AchtungDieKurveGame:
         if color is None:
             color = self.player_colors[idx]
 
-        p = Player(idx=idx, init_pos=init_pos, speed=self.player_speed, init_angle=init_angle, color=color,
+        p = Player(idx=idx, init_pos=init_pos, dist_per_tick=self.dist_per_tick, init_angle=init_angle, color=color,
                    steer_left_key=self.player_keys[idx]['left'], steer_right_key=self.player_keys[idx]['right'])
 
         self.players.append(p)
@@ -182,6 +235,14 @@ class AchtungDieKurveGame:
 
         #self.update_scoreboard() # TODO: Create scoreboard display
 
+    # TODO: implement external tick control
+
+    #def tick(self):
+    #    """Advance game by one tick == frame"""
+    #
+    #    running = True
+    #
+    #    return running
 
     def run(self):
         # Initialize pygame
@@ -210,9 +271,9 @@ class AchtungDieKurveGame:
         # Variable to keep the main loop running
         running = True
         # Main loop
-        frame_num = 0
         while running:
-            logging.debug(f">==== Frame {frame_num:d} ===============")
+            self.current_frame += 1
+            logging.debug(f">==== Frame {self.current_frame:d} ===============")
             # Look at every event in the queue
             for event in pygame.event.get():
                 # Did the user hit a key?
@@ -233,9 +294,9 @@ class AchtungDieKurveGame:
 
             for p in self.active_players:
                 # Process player input
-                p.apply_steering(pressed_keys, self.dphi_per_frame)
+                p.apply_steering(pressed_keys, self.dphi_per_tick)
                 # Update player positions
-                p.move(self.dt_per_frame)
+                p.move()
                 # Draw player at its current position
                 p.draw(screen)
 
@@ -245,7 +306,7 @@ class AchtungDieKurveGame:
                     self.disable_player(p)
 
                 # Check self-collision
-                elif p.check_self_collision(self.dt_per_frame):
+                elif p.check_self_collision():
                     logging.info(f"Player {p.idx} collided with itself")
                     self.disable_player(p)
 
@@ -274,7 +335,6 @@ class AchtungDieKurveGame:
 
             # Ensure program maintains a rate of 30 frames per second
             clock.tick(self.target_fps)
-            frame_num += 1
 
         pygame.time.wait(1500)
 
