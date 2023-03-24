@@ -116,8 +116,13 @@ class AchtungDieKurveGame:
         if color is None:
             color = self.player_colors[idx]
 
-        player_kwargs = dict(idx=idx, init_pos=init_pos, dist_per_tick=self.dist_per_tick, init_angle=init_angle, color=color,
-                   steer_left_key=self.player_keys[idx]['left'], steer_right_key=self.player_keys[idx]['right'])
+        player_kwargs = dict(idx=idx, init_pos=init_pos, init_angle=init_angle,
+                             dist_per_tick=self.dist_per_tick,
+                             dphi_per_tick=self.dphi_per_tick,
+                             steer_left_key=self.player_keys[idx]['left'],
+                             steer_right_key=self.player_keys[idx]['right'],
+                             color=color,
+                             )
 
         if player_type == "human" or player_type == Player:
             p = Player(**player_kwargs)
@@ -183,7 +188,7 @@ class AchtungDieKurveGame:
 
         for p in self.active_players:
             # Process player input
-            p.apply_steering(pressed_keys, self.dphi_per_tick)
+            p.apply_steering(pressed_keys)
             # Update player positions
             p.move()
             # Draw player at its current position

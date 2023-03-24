@@ -20,8 +20,8 @@ class PlayerAction(IntEnum):
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, idx=1, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, color=(255, 10, 10),
-                 steer_left_key=pygame.K_LEFT, steer_right_key=pygame.K_DOWN,
+    def __init__(self, idx=1, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01,
+                 color=(255, 10, 10), steer_left_key=pygame.K_LEFT, steer_right_key=pygame.K_DOWN,
                  hole_width=3.0, startblock_length=100., min_dist_between_holes=200., max_dist_between_holes=1500.):
         """
 
@@ -40,6 +40,7 @@ class Player(pygame.sprite.Sprite):
         self.idx = idx
         self.pos = np.asarray(init_pos, dtype=float)  # x-position in game world (pixel coordinates)
         self.dist_per_tick = dist_per_tick
+        self.dphi_per_tick = dphi_per_tick
         self.dist_travelled = 0.0  # total distance travelled
         self.angle = init_angle  # angle of velocity vector
         self.steer_left_key = steer_left_key
@@ -78,13 +79,13 @@ class Player(pygame.sprite.Sprite):
     def active_hole(self):
         return self.dist_to_next_hole <= 0.0
 
-    def apply_steering(self, pressed_keys, dphi: float):
+    def apply_steering(self, pressed_keys):
         if pressed_keys[self.steer_left_key]:
             logging.debug(f"{self} steering to the left")
-            self.angle -= dphi
+            self.angle -= self.dphi_per_tick
         elif pressed_keys[self.steer_right_key]:
             logging.debug(f"{self} steering to the right")
-            self.angle += dphi
+            self.angle += self.dphi_per_tick
 
     def _roll_dist_to_next_hole(self):
         if self.dist_travelled < self.startblock_length:
@@ -178,9 +179,30 @@ class AIPlayer(Player):
 
         return keypresses
 
-    def wall_escape_action(self):
-        vel_vec = self.vel_vec
-        player_angle = np.mod(self.angle + np.pi, 2*np.pi) - np.pi
+    def _pos_inside_bounds(self, pos):
+        return self.xmin <= pos[0] <= self.xmax and self.ymin <= pos[1] <= self.ymax()
+
+    def _dryrun_action(self, action:PlayerAction):
+        if action == PlayerAction.SteerLeft:
+            new_angle = self.angle - self.dphi_per_tick
+        elif action == PlayerAction.SteerRight:
+            new_angle = self.angle + self.dphi_per_tick
+        else:
+            new_angle = self.angle
+
+        return self.pos + self.dist_per_tick * np.array([np.cos(new_angle), np.sin(new_angle)])
+
+
+    def actions_for_wall_evasion(self):
+        actions = [PlayerAction.SteerLeft, PlayerAction.KeepStraight, PlayerAction.SteerRight]
+
+        """ Returns a list of potential PlayerActions for the current tick that hold open wall-evading paths for the player """
+        vel_dir = np.array([np.cos(self.angle), np.sin(self.angle)])
+        #player_angle = np.mod(self.angle + np.pi, 2*np.pi) - np.pi
+
+        # outward-facing wall normals
+        wall_nvecs = np.array([[-1.,0.], [0.,-1.], [1.,0.], [0.,1.]])
+        wall_names = np.array(["left","bottom","right","top"])
 
         # Get distances to walls in case that current heading is kept
         dist_to_left_wall = self.pos[0] - self.xmin
@@ -188,14 +210,77 @@ class AIPlayer(Player):
         dist_to_top_wall = (self.ymax - self.pos[1])  # y-axis is inverted?
         dist_to_bot_wall = (self.pos[1] - self.ymin)  # y-axis is inverted?
 
-        wall_names = np.array(["left","bottom","right","top"])
         wall_distances = np.array([dist_to_left_wall, dist_to_bot_wall, dist_to_right_wall, dist_to_top_wall])
         logging.debug(f"WallAvoidingPlayer {self.idx} wall distances " + "[{:5.1f} {:5.1f} {:5.1f} {:5.1f}]".format(*wall_distances))
 
-        walls_close = wall_distances <= self.turn_radius
+        walls_close = wall_distances <= 2*self.turn_radius
+        num_walls_close = np.sum(walls_close)
 
-        if np.all(walls_close == False):
-            return PlayerAction.KeepStraight
+        if num_walls_close == 0:
+            # Player in center zone ==> walls pose no restrictions on movement here
+            return actions
+
+        # Determine walls that player is currently moving towards (max 2)
+        walls_targeted = wall_nvecs.dot(vel_dir.T) >= 0.0
+
+        walls_critical = np.logical_and(walls_close, walls_targeted)
+        num_walls_critical = np.sum(walls_critical)
+
+        if num_walls_critical == 0:
+            # Player close to one or more walls, but is not moving towards them=> walls only restrict actions if
+            # player is very close to one of them
+            # Check if the next update would let player collide with walls
+            actions = [a for a in actions if self._pos_inside_bounds(self._dryrun_action(a))]
+            return actions
+
+        else:
+
+            R_le = np.array([[0,-1],[1,0]])
+            R_ri = np.array([[0,1],[-1,0]])
+
+            # For each critical wall, check if left and/or right evasion turns are possible
+            for wall_idx in np.argwhere(walls_critical):
+                dist_to_wall = wall_distances[wall_idx]
+                nvec = wall_nvecs[wall_idx]
+                if num_walls_close == 1:
+                    evec_ri = R_le @ nvec
+                    evec_le = R_ri @ nvec
+                else:
+                    # 2 walls are close -> player is in corner
+                    # Player is in one of the corners
+                    # evec == escape vector == vector parallel to wall that leads away from the
+                    if walls_close[0] and walls_close[1]:
+                        # bottom left corner
+                        evec_ri = [1., 0.]
+                        evec_le = [0., 1.]
+                    elif walls_close[1] and walls_close[2]:
+                        # bottom right corner
+                        evec_ri = [-1.,0.]
+                        evec_le = [0., 1.]
+                    elif walls_close[2] and walls_close[3]:
+                        # top right corner
+                        evec_ri = [0.,-1.]
+                        evec_le = [-1., 0.]
+                    else:
+                        # top left corner
+                        evec_ri = [1., 0.]
+                        evec_le = [0., -1.]
+
+                # Calculate turn angle for left turn
+                evasion_turn_angle_le = np.arccos(evec_le.dot(vel_dir))
+
+                if dist_to_wall < self.turn_radius * 1 + (np.cos(180 - evasion_turn_angle_le)):
+                    actions.remove(PlayerAction.SteerLeft)
+
+                # Calculate turn angle for left turn
+                evasion_turn_angle_ri = np.arccos(evec_ri.dot(vel_dir))
+
+                if dist_to_wall < self.turn_radius * 1 + (np.cos(180 - evasion_turn_angle_ri)):
+                    actions.remove(PlayerAction.SteerRight)
+
+                if actions
+
+
 
         forbidden_angles = []
         for wall_idx, dist_to_wall in enumerate(wall_distances):
