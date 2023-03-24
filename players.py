@@ -193,7 +193,7 @@ class AIPlayer(Player):
         return self.pos + self.dist_per_tick * np.array([np.cos(new_angle), np.sin(new_angle)])
 
 
-    def actions_for_wall_evasion(self):
+    def actions_for_wall_evasion(self, turn_radius):
         actions = [PlayerAction.SteerLeft, PlayerAction.KeepStraight, PlayerAction.SteerRight]
 
         """ Returns a list of potential PlayerActions for the current tick that hold open wall-evading paths for the player """
@@ -213,7 +213,7 @@ class AIPlayer(Player):
         wall_distances = np.array([dist_to_left_wall, dist_to_bot_wall, dist_to_right_wall, dist_to_top_wall])
         logging.debug(f"WallAvoidingPlayer {self.idx} wall distances " + "[{:5.1f} {:5.1f} {:5.1f} {:5.1f}]".format(*wall_distances))
 
-        walls_close = wall_distances <= 2*self.turn_radius
+        walls_close = wall_distances <= 2 * turn_radius
         num_walls_close = np.sum(walls_close)
 
         if num_walls_close == 0:
@@ -234,17 +234,18 @@ class AIPlayer(Player):
             return actions
 
         else:
-
+            # One or two walls critical
             R_le = np.array([[0,-1],[1,0]])
             R_ri = np.array([[0,1],[-1,0]])
 
+            forbidden_actions = [PlayerAction.KeepStraight]
             # For each critical wall, check if left and/or right evasion turns are possible
             for wall_idx in np.argwhere(walls_critical):
                 dist_to_wall = wall_distances[wall_idx]
                 nvec = wall_nvecs[wall_idx]
                 if num_walls_close == 1:
-                    evec_ri = R_le @ nvec
-                    evec_le = R_ri @ nvec
+                    evec_ri = R_le.dot(nvec.T).flatten()
+                    evec_le = R_ri.dot(nvec.T).flatten()
                 else:
                     # 2 walls are close -> player is in corner
                     # Player is in one of the corners
@@ -267,48 +268,20 @@ class AIPlayer(Player):
                         evec_le = [0., -1.]
 
                 # Calculate turn angle for left turn
-                evasion_turn_angle_le = np.arccos(evec_le.dot(vel_dir))
-
-                if dist_to_wall < self.turn_radius * 1 + (np.cos(180 - evasion_turn_angle_le)):
-                    actions.remove(PlayerAction.SteerLeft)
+                evasion_turn_angle_le = np.arccos(np.dot(evec_le,vel_dir))
+                # Check if evasion turn to the left is possible
+                if dist_to_wall < turn_radius * 1 + (np.cos(180 - evasion_turn_angle_le)):
+                    logging.debug(f"Unable to evade {wall_names[wall_idx]} wall with left turn")
+                    forbidden_actions.append(PlayerAction.SteerLeft)
 
                 # Calculate turn angle for left turn
-                evasion_turn_angle_ri = np.arccos(evec_ri.dot(vel_dir))
+                evasion_turn_angle_ri = np.arccos(np.dot(evec_ri,vel_dir))
+                # Check if evasion turn to the right is possible
+                if dist_to_wall < turn_radius * 1 + (np.cos(180 - evasion_turn_angle_ri)):
+                    logging.debug(f"Unable to evade {wall_names[wall_idx]} wall with right turn")
+                    forbidden_actions.append(PlayerAction.SteerRight)
 
-                if dist_to_wall < self.turn_radius * 1 + (np.cos(180 - evasion_turn_angle_ri)):
-                    actions.remove(PlayerAction.SteerRight)
-
-                if actions
-
-
-
-        forbidden_angles = []
-        for wall_idx, dist_to_wall in enumerate(wall_distances):
-            if walls_close[wall_idx] is False:
-                continue
-            critical_wall = wall_names[wall_idx]
-            if critical_wall == "left":
-                # left wall will be hit
-                n_vec = [-1., 0.]
-            elif critical_wall == "bot":
-                # bottom wall will be hit
-                n_vec = [0., -1.]
-            elif critical_wall == "right":
-                # right wall will be hit
-                n_vec = [1., 0.]
-            else:
-                # top wall will be hit
-                n_vec = [0., 1.]
-
-            # Check if player is actually towards the wall
-            if vel_vec.dot(n_vec) > 0.0:
-                logging.debug(f"{self} is close to hitting the {critical_wall} wall")
-                wall_escape_angle = np.arcsin(1 - dist_to_wall/self.turn_radius)
-                wall_angle = np.arctan2(n_vec[1], n_vec[0])
-                forbidden_angles.append([wall_angle - wall_escape_angle, wall_angle + wall_escape_angle])
-
-
-
+            return [a for a in actions if a not in forbidden_actions]
 
 
 
@@ -322,6 +295,18 @@ class WallAvoidingAIPlayer(AIPlayer):
         return f"WallAvoidingAIPlayer {self.idx}"
 
     def next_action(self, game_state):
+        possible_actions = self.actions_for_wall_evasion(self.turn_radius)
+
+        if len(possible_actions) == 0:
+            logging.debug(f"{self} is unable to evade the walls!")
+            return PlayerAction.KeepStraight
+
+        if PlayerAction.KeepStraight in possible_actions:
+            # Go straight as long it is possible
+            return PlayerAction.KeepStraight
+        else:
+            # Choose left or right turn at random
+            return random.choice(possible_actions)
 
 
 

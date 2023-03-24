@@ -8,7 +8,6 @@ import pygame
 from pygame.locals import RLEACCEL
 import pygame.freetype  # Import the freetype module.
 
-
 # Define constants for the screen width and height
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -128,11 +127,11 @@ class AchtungDieKurveGame:
             p = Player(**player_kwargs)
         elif issubclass(player_type, AIPlayer):
             aiplayer_kwargs = player_kwargs
+            aiplayer_kwargs.update(kwargs)
             aiplayer_kwargs['game_bounds'] = self.game_bounds
             if player_type == WallAvoidingAIPlayer:
                 p = WallAvoidingAIPlayer(**aiplayer_kwargs)
             elif player_type == RandomSteeringAIPlayer:
-                aiplayer_kwargs.update(kwargs)
                 p = RandomSteeringAIPlayer(**aiplayer_kwargs)
             else:
                 raise ValueError(f"Invalid AI player type {player_type}")
@@ -171,6 +170,7 @@ class AchtungDieKurveGame:
                 self.spawn_player(player_id, init_pos=positions[player_id])
             else:
                 self.spawn_player(player_id)
+
 
     def draw_start_positions(self):
         for p in self.active_players:
@@ -227,6 +227,7 @@ class AchtungDieKurveGame:
 
         return running
 
+
     def draw_game_state(self):
         """ Draws the current game state"""
         raise NotImplementedError
@@ -240,10 +241,21 @@ class AchtungDieKurveGame:
         return game_state
 
 
+    def _draw_wall_zones(self):
+        c = pygame.color.Color("cyan")
+        w = 1
+        R = self.min_turn_radius
+        pygame.draw.line(self.screen, c, (0,2*R),(SCREEN_WIDTH, 2*R), w)
+        pygame.draw.line(self.screen, c, (0, SCREEN_HEIGHT - 2 * R), (SCREEN_WIDTH, SCREEN_HEIGHT - 2 * R), w)
+        pygame.draw.line(self.screen, c, (2*R,0),(2*R, SCREEN_HEIGHT), w)
+        pygame.draw.line(self.screen, c, (SCREEN_WIDTH - 2*R,0),(SCREEN_WIDTH - 2*R, SCREEN_HEIGHT), w)
+
+
     def run(self):
         # Create player 1
         #self.spawn_player(1, init_pos=(100,400), init_angle=0.0)
-        self.spawn_player(2, init_pos=(500,100), init_angle=np.deg2rad(60), player_type=WallAvoidingAIPlayer)
+        self.spawn_player(2, init_pos=(500,100), init_angle=np.deg2rad(10.0), player_type=WallAvoidingAIPlayer,
+                          min_turn_radius=self.min_turn_radius, safety_factor=1.1)
         #self.spawn_player(3)
         #self.spawn_player(4)
         #self.spawn_player(5)
@@ -280,9 +292,11 @@ class AchtungDieKurveGame:
             # Query AI-players for steering input
             for ap in self.active_players:
                 if isinstance(ap, AIPlayer):
-                    ap.apply_steering(ap.get_keypresses(game_state=None), self.dphi_per_tick)
+                    ap.apply_steering(ap.get_keypresses(game_state=None))
 
             running = self.move_players(pressed_keys)
+
+            self._draw_wall_zones()
 
             # Render the display (flip everything to the display)
             pygame.display.flip()
@@ -298,6 +312,6 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG, format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")
 
-    game = AchtungDieKurveGame()
+    game = AchtungDieKurveGame(target_fps=5, game_speed_factor=0.5)
     game.run()
 
