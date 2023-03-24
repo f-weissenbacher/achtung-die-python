@@ -40,6 +40,7 @@ class AchtungDieKurveGame:
                      }
 
     def __init__(self, target_fps=30, game_speed_factor=1.0):
+        self.running = False
         self.screen_width = 800
         self.screen_height = 600
         self.game_bounds = [0, self.screen_width, 0, self.screen_height]
@@ -179,8 +180,8 @@ class AchtungDieKurveGame:
         pygame.display.flip()
 
 
-    def move_players(self, pressed_keys):
-        """ Advance game by one tick/frame"""
+    def move_players(self, pressed_keys, draw=True):
+        """ Advance players by one tick/frame"""
         running = True
 
         # Refill screen to remove old player/enemy positions
@@ -192,7 +193,8 @@ class AchtungDieKurveGame:
             # Update player positions
             p.move()
             # Draw player at its current position
-            p.draw(self.screen)
+            if draw:
+                p.draw(self.screen)
 
             # Detect wall collisions
             if self.detect_wall_collision(p):
@@ -218,14 +220,15 @@ class AchtungDieKurveGame:
             winner = self.active_players[0]
             win_msg = f"Player {winner.idx} won!"
             logging.info(win_msg)
-            self.font.render_to(self.screen, (int(0.25 * SCREEN_WIDTH), int(0.5 * SCREEN_HEIGHT)), win_msg,
+            if draw:
+                self.font.render_to(self.screen, (int(0.25 * SCREEN_WIDTH), int(0.5 * SCREEN_HEIGHT)), win_msg,
                                 winner.color)
             if not self.run_until_last_player_dies:
                 running = False
         elif len(self.active_players) == 0:
             running = False
 
-        return running
+        self.running = running
 
 
     def draw_game_state(self):
@@ -241,7 +244,7 @@ class AchtungDieKurveGame:
         return game_state
 
 
-    def _draw_wall_zones(self):
+    def draw_wall_zones(self):
         c = pygame.color.Color("cyan")
         w = 1
         R = self.min_turn_radius
@@ -250,53 +253,64 @@ class AchtungDieKurveGame:
         pygame.draw.line(self.screen, c, (2*R,0),(2*R, SCREEN_HEIGHT), w)
         pygame.draw.line(self.screen, c, (SCREEN_WIDTH - 2*R,0),(SCREEN_WIDTH - 2*R, SCREEN_HEIGHT), w)
 
+    def tick_forward(self, draw=True):
+        """
+        Advance game state by one tick
+        """
+        self.current_frame += 1
+        logging.debug(f">==== Frame {self.current_frame:d} ===============")
 
-    def run(self):
-        # Create player 1
-        #self.spawn_player(1, init_pos=(100,400), init_angle=0.0)
-        self.spawn_player(2, init_pos=(500,100), init_angle=np.deg2rad(10.0), player_type=WallAvoidingAIPlayer,
-                          min_turn_radius=self.min_turn_radius, safety_factor=1.1)
-        #self.spawn_player(3)
-        #self.spawn_player(4)
-        #self.spawn_player(5)
-        #self.spawn_player(6)
+        # Get key presses
+        pressed_keys = pygame.key.get_pressed()
+
+        # Query AI-players for steering input
+        for ap in self.active_players:
+            if isinstance(ap, AIPlayer):
+                ap.apply_steering(ap.get_keypresses(game_state=None))
+
+        self.move_players(pressed_keys, draw=draw)
+
+
+    def reverse_tick(self):
+        "Step back game by 1 tick"
+
+        #for p in self.players:
+
+    def start_game_loop(self):
+        # Create players
+        self.spawn_player(1)
+        self.spawn_player(2)
+        self.spawn_player(3)
+        self.spawn_player(4)
+        self.spawn_player(5)
+        self.spawn_player(6)
 
         self.draw_start_positions()
         # Show Start positions for a short time before starting
         pygame.time.wait(500)
 
         # Variable to keep the main loop running
-        running = True
+        self.running = True
         # Main loop
-        while running:
-            self.current_frame += 1
-            logging.debug(f">==== Frame {self.current_frame:d} ===============")
+        while self.running:
             # Look at every event in the queue
             for event in pygame.event.get():
                 # Did the user hit a key?
                 if event.type == pygame.KEYDOWN:
                     # Was it the Escape key? If so, stop the loop.
                     if event.key == pygame.K_ESCAPE:
-                        running = False
+                        self.running = False
 
                 # Did the user click the window close button? If so, stop the loop.
                 elif event.type == pygame.QUIT:
-                    running = False
+                    self.running = False
 
-            if running is False:
-                break
+            if self.running is False:
+                logging.info("Game was stopped by user")
+                return
 
-            # Get key presses
-            pressed_keys = pygame.key.get_pressed()
-
-            # Query AI-players for steering input
-            for ap in self.active_players:
-                if isinstance(ap, AIPlayer):
-                    ap.apply_steering(ap.get_keypresses(game_state=None))
-
-            running = self.move_players(pressed_keys)
-
-            self._draw_wall_zones()
+            self.tick_forward()
+            #self._draw_wall_zones()
 
             # Render the display (flip everything to the display)
             pygame.display.flip()
@@ -307,11 +321,18 @@ class AchtungDieKurveGame:
         pygame.time.wait(1200)
 
 
+    def flush_display(self, wall_zones=True):
+        if wall_zones:
+            self.draw_wall_zones()
+
+        pygame.display.flip()
+
+
 
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG, format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")
 
-    game = AchtungDieKurveGame(target_fps=5, game_speed_factor=0.5)
-    game.run()
+    game = AchtungDieKurveGame(target_fps=30, game_speed_factor=0.5)
+    game.start_game_loop()
 
