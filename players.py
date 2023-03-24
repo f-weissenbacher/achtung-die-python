@@ -178,64 +178,65 @@ class AIPlayer(Player):
 
         return keypresses
 
+    def wall_escape_action(self):
+        vel_vec = self.vel_vec
+        player_angle = np.mod(self.angle + np.pi, 2*np.pi) - np.pi
+
+        # Get distances to walls in case that current heading is kept
+        dist_to_left_wall = self.pos[0] - self.xmin
+        dist_to_right_wall = self.xmax - self.pos[0]
+        dist_to_top_wall = (self.ymax - self.pos[1])  # y-axis is inverted?
+        dist_to_bot_wall = (self.pos[1] - self.ymin)  # y-axis is inverted?
+
+        wall_names = np.array(["left","bottom","right","top"])
+        wall_distances = np.array([dist_to_left_wall, dist_to_bot_wall, dist_to_right_wall, dist_to_top_wall])
+        logging.debug(f"WallAvoidingPlayer {self.idx} wall distances " + "[{:5.1f} {:5.1f} {:5.1f} {:5.1f}]".format(*wall_distances))
+
+        walls_close = wall_distances <= self.turn_radius
+
+        if np.all(walls_close == False):
+            return PlayerAction.KeepStraight
+
+        forbidden_angles = []
+        for wall_idx, dist_to_wall in enumerate(wall_distances):
+            if walls_close[wall_idx] is False:
+                continue
+            critical_wall = wall_names[wall_idx]
+            if critical_wall == "left":
+                # left wall will be hit
+                n_vec = [-1., 0.]
+            elif critical_wall == "bot":
+                # bottom wall will be hit
+                n_vec = [0., -1.]
+            elif critical_wall == "right":
+                # right wall will be hit
+                n_vec = [1., 0.]
+            else:
+                # top wall will be hit
+                n_vec = [0., 1.]
+
+            # Check if player is actually towards the wall
+            if vel_vec.dot(n_vec) > 0.0:
+                logging.debug(f"{self} is close to hitting the {critical_wall} wall")
+                wall_escape_angle = np.arcsin(1 - dist_to_wall/self.turn_radius)
+                wall_angle = np.arctan2(n_vec[1], n_vec[0])
+                forbidden_angles.append([wall_angle - wall_escape_angle, wall_angle + wall_escape_angle])
+
+
+
+
+
 
 class WallAvoidingAIPlayer(AIPlayer):
-    def __init__(self, **aiplayer_kwargs):
+    def __init__(self,  min_turn_radius, safety_factor=1.02, **aiplayer_kwargs):
         super().__init__(**aiplayer_kwargs)
         #self.min_turn_radius = min_turn_radius
+        self.turn_radius = min_turn_radius * safety_factor
 
     def __str__(self):
         return f"WallAvoidingAIPlayer {self.idx}"
 
     def next_action(self, game_state):
-        vel_vec = self.vel_vec
-        next_pos = self.pos + vel_vec
-
-        # Get distances to walls in case that current heading is kept
-        dist_to_left_wall = next_pos[0] - self.xmin
-        dist_to_right_wall = self.xmax - next_pos[0]
-        dist_to_top_wall = (self.ymax - next_pos[1])  # y-axis is inverted?
-        dist_to_bot_wall = (next_pos[1] - self.ymin)  # y-axis is inverted?
-
-        wall_names = ["left","bottom","right","top"]
-        wall_distances = np.array([dist_to_left_wall, dist_to_bot_wall, dist_to_right_wall, dist_to_top_wall])
-        logging.debug(f"WallAvoidingPlayer {self.idx} wall distances " + "[{:5.1f} {:5.1f} {:5.1f} {:5.1f}]".format(*wall_distances))
-
-        wall_hit = wall_distances <= 0.0
-
-        if np.all(wall_hit == False):
-            return PlayerAction.KeepStraight
-
-        critical_wall = np.argmin(wall_distances)
-        logging.debug(f"WallAvoidingPlayer {self.idx} projected to hit {wall_names[critical_wall]} wall")
-
-        if critical_wall == 0:
-            # left wall will be hit
-            if vel_vec[1] >= 0:
-                return PlayerAction.SteerRight
-            else:
-                return PlayerAction.SteerLeft
-
-        elif critical_wall == 1:
-            # bottom wall will be hit
-            if vel_vec[0] >= 0:
-                return PlayerAction.SteerLeft
-            else:
-                return PlayerAction.SteerRight
-
-        elif critical_wall == 2:
-            # right wall will be hit
-            if vel_vec[1] >= 0:
-                return PlayerAction.SteerLeft
-            else:
-                return PlayerAction.SteerRight
-
-        else:
-            # top wall will be hit
-            if vel_vec[0] >= 0:
-                return PlayerAction.SteerRight
-            else:
-                return PlayerAction.SteerLeft
 
 
 
