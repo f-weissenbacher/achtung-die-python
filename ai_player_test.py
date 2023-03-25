@@ -14,10 +14,11 @@ game = AchtungDieKurveGame(target_fps=30, game_speed_factor=0.5)
 game.spawn_player(1, init_pos=(500 ,100), init_angle=np.deg2rad(10.0), player_type=WallAvoidingAIPlayer,
                   min_turn_radius=game.min_turn_radius, safety_factor=1.1)
 
-p1 = game.players[0]
+p1 = game.players[1]
 
 for k in range(10):
     game.tick_forward(draw=True)
+    p1.pos
     game.flush_display()
 
 
