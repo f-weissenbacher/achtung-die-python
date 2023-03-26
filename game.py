@@ -8,11 +8,8 @@ import pygame
 from pygame.locals import RLEACCEL
 import pygame.freetype  # Import the freetype module.
 
-# Define constants for the screen width and height
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
 
-from math import pi,sqrt
+from math import pi,sqrt, asin
 
 from players import *
 
@@ -48,13 +45,13 @@ class AchtungDieKurveGame:
         self.spawn_safety_distance = 0.5 * self.min_turn_radius
         #self.min_turn_radius = 100  # minimum turn radius in pixels
         self.player_speed = game_speed_factor * 0.075 * self.screen_width # pixels travelled per second of game time
-        self.player_turn_rate = self.player_speed / self.min_turn_radius # turn rate (radians per second)
 
         self.target_fps = target_fps
-        dt_per_tick = 1/self.target_fps
+        #dt_per_tick = 1/self.target_fps
         self.current_frame = -1 # game has not been started yet
-        self.dist_per_tick = self.player_speed * dt_per_tick # distance travelled by player during 1 tick
-        self.dphi_per_tick = self.player_turn_rate * dt_per_tick # maximum steering angle per frame
+        self.dist_per_tick = self.player_speed/self.target_fps # distance travelled by player during 1 tick
+        self.dphi_per_tick = 2*asin(self.dist_per_tick/(2*self.min_turn_radius)) # angle change in randians per tick
+        #self.player_turn_rate = self.player_speed / self.min_turn_radius # turn rate (radians per second)
         #logging.info(f"dphi_per_tick = {self.dphi_per_tick * 180/pi}")
 
         self.players = []
@@ -221,7 +218,7 @@ class AchtungDieKurveGame:
             win_msg = f"Player {winner.idx} won!"
             logging.info(win_msg)
             if draw:
-                self.font.render_to(self.screen, (int(0.25 * SCREEN_WIDTH), int(0.5 * SCREEN_HEIGHT)), win_msg,
+                self.font.render_to(self.screen, (int(0.25 * self.screen_width), int(0.5 * self.screen_height)), win_msg,
                                 winner.color)
             if not self.run_until_last_player_dies:
                 running = False
@@ -248,10 +245,10 @@ class AchtungDieKurveGame:
         c = pygame.color.Color("cyan")
         w = 1
         R = self.min_turn_radius
-        pygame.draw.line(self.screen, c, (0,2*R),(SCREEN_WIDTH, 2*R), w)
-        pygame.draw.line(self.screen, c, (0, SCREEN_HEIGHT - 2 * R), (SCREEN_WIDTH, SCREEN_HEIGHT - 2 * R), w)
-        pygame.draw.line(self.screen, c, (2*R,0),(2*R, SCREEN_HEIGHT), w)
-        pygame.draw.line(self.screen, c, (SCREEN_WIDTH - 2*R,0),(SCREEN_WIDTH - 2*R, SCREEN_HEIGHT), w)
+        pygame.draw.line(self.screen, c, (0,2*R),(self.screen_width, 2*R), w)
+        pygame.draw.line(self.screen, c, (0, self.screen_height - 2 * R), (self.screen_width, self.screen_height - 2 * R), w)
+        pygame.draw.line(self.screen, c, (2*R,0),(2*R, self.screen_height), w)
+        pygame.draw.line(self.screen, c, (self.screen_width - 2*R,0),(self.screen_width - 2*R, self.screen_height), w)
 
     def tick_forward(self, draw=True):
         """
@@ -276,15 +273,7 @@ class AchtungDieKurveGame:
 
         #for p in self.players:
 
-    def start_game_loop(self):
-        # Create players
-        self.spawn_player(1)
-        self.spawn_player(2)
-        self.spawn_player(3)
-        self.spawn_player(4)
-        self.spawn_player(5)
-        self.spawn_player(6)
-
+    def run_game_loop(self):
         self.draw_start_positions()
         # Show Start positions for a short time before starting
         pygame.time.wait(500)
@@ -309,8 +298,8 @@ class AchtungDieKurveGame:
                 logging.info("Game was stopped by user")
                 return
 
+            self.draw_wall_zones()
             self.tick_forward()
-            #self._draw_wall_zones()
 
             # Render the display (flip everything to the display)
             pygame.display.flip()
@@ -334,5 +323,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")
 
     game = AchtungDieKurveGame(target_fps=30, game_speed_factor=0.5)
-    game.start_game_loop()
+    game.initialize_players([1,2,3,4,5,6])
+    game.run_game_loop()
 
