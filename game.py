@@ -54,8 +54,8 @@ class AchtungDieKurveGame:
         #self.player_turn_rate = self.player_speed / self.min_turn_radius # turn rate (radians per second)
         #logging.info(f"dphi_per_tick = {self.dphi_per_tick * 180/pi}")
 
-        self.players = {}
-        self.active_players = {}
+        self.players = []
+        self.active_players = []
         self.scoreboard = {idx:0 for idx in AchtungDieKurveGame.player_keys}
 
         # Initialize pygame
@@ -83,7 +83,7 @@ class AchtungDieKurveGame:
             x = self.min_turn_radius + (self.screen_width - 2 * self.min_turn_radius) * random.random()
             y = self.min_turn_radius + (self.screen_height - 2 * self.min_turn_radius) * random.random()
 
-            for p in self.players.values():
+            for p in self.players:
                 dist = sqrt((x - p.pos[0])**2 + (y - p.pos[1])**2)
                 if dist < self.spawn_safety_distance:
                     logging.debug("re-rolling start position")
@@ -101,7 +101,7 @@ class AchtungDieKurveGame:
         return x <= 0 or x >= self.screen_width or y <= 0 or y >= self.screen_height
 
     def spawn_player(self, idx, init_pos=None, init_angle=None, color=None, player_type=Player, **kwargs):
-        if idx in self.players:
+        if idx in [p.idx for p in self.players]:
             raise ValueError(f"Player {idx} already exists")
 
         if init_pos is None:
@@ -136,16 +136,16 @@ class AchtungDieKurveGame:
         else:
             raise ValueError(f"Invalid player type {player_type}")
 
-        self.players[p.idx] = p
-        self.active_players[p.idx] = p
+        self.players.append(p)
+        self.active_players.append(p)
 
 
     def disable_player(self, p):
         """ Remove player from list of active players but keep its history"""
-        self.active_players.pop(p.idx)
+        self.active_players.remove(p)
         # Increment scores of all remaining players
-        for op_idx in self.active_players:
-            self.scoreboard[op_idx] += 1
+        for op in self.active_players:
+            self.scoreboard[op.idx] += 1
 
         #self.update_scoreboard() # TODO: Create scoreboard display
 
@@ -171,7 +171,7 @@ class AchtungDieKurveGame:
 
 
     def draw_start_positions(self):
-        for p in self.active_players.values():
+        for p in self.active_players:
             p.draw(self.screen)
 
         pygame.display.flip()
@@ -183,8 +183,8 @@ class AchtungDieKurveGame:
 
         # Refill screen to remove old player/enemy positions
         # screen.fill((0,0,0))
-        marked_for_disablement = []
-        for p in self.active_players.values():
+
+        for p in self.active_players:
             # Process player input
             p.apply_steering(pressed_keys)
             # Update player positions
@@ -196,25 +196,22 @@ class AchtungDieKurveGame:
             # Detect wall collisions
             if self.detect_wall_collision(p):
                 logging.info(f"Player {p.idx} hit the walls")
-                marked_for_disablement.append(p)
+                self.disable_player(p)
 
             # Check self-collision
             elif p.check_self_collision():
                 logging.info(f"Player {p.idx} collided with itself")
-                marked_for_disablement.append(p)
+                self.disable_player(p)
 
             else:
                 # Check for collision with other players
-                for p2 in self.players.values():
-                    if p.idx == p2.idx:
+                for p2 in self.players:
+                    if p == p2:
                         continue
                     elif p.check_player_collision(p2):
                         logging.info(f"Player {p.idx} collided with player {p2.idx}")
-                        marked_for_disablement.append(p)
+                        self.disable_player(p)
                         break
-
-        for p in marked_for_disablement:
-            self.disable_player(p)
 
         if len(self.active_players) == 1:
             winner = self.active_players[0]
