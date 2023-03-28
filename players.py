@@ -231,8 +231,8 @@ class AIPlayer(Player):
         # Get distances to walls in case that current heading is kept
         dist_to_left_wall = self.pos[0] - self.xmin
         dist_to_right_wall = self.xmax - self.pos[0]
-        dist_to_bot_wall = (self.ymax - self.pos[1])  # y-axis is inverted
-        dist_to_top_wall = (self.pos[1] - self.ymin)  # y-axis is inverted
+        dist_to_bot_wall = self.ymax - self.pos[1]  # y-axis is inverted
+        dist_to_top_wall = self.pos[1] - self.ymin  # y-axis is inverted
 
         wall_distances = np.array([dist_to_left_wall, dist_to_bot_wall, dist_to_right_wall, dist_to_top_wall])
         logging.debug(f"WallAvoidingPlayer {self.idx} wall distances " + "[{:5.1f} {:5.1f} {:5.1f} {:5.1f}]".format(*wall_distances))
@@ -260,8 +260,11 @@ class AIPlayer(Player):
 
         else:
             # One or two walls critical
-            R_le = np.array([[0,-1],[1,0]])
-            R_ri = np.array([[0,1],[-1,0]])
+            # Rotation matrices:
+            #R_le = np.array([[0,-1],
+            #                 [1,0]])
+            #R_ri = np.array([[0,1],
+            #                 [-1,0]])
 
             left_turn_state = PlayerTurnState.Possible
             right_turn_state = PlayerTurnState.Possible
@@ -272,31 +275,31 @@ class AIPlayer(Player):
                 nvec = wall_nvecs[wall_idx]
                 logging.debug(f"{self} facing {wall_names[wall_idx]} wall")
                 if num_walls_close == 1:
-                    evec_ri = R_le.dot(nvec.T).flatten()
-                    evec_le = R_ri.dot(nvec.T).flatten()
+                    evec_ri = [-nvec[1], nvec[0]]
+                    evec_le = [nvec[1], -nvec[0]]
                 else:
                     # 2 walls are close -> player is in corner
                     # Player is in one of the corners
                     # evec == escape vector == vector parallel to wall that leads away from the
                     if walls_close[0] and walls_close[1]:
                         # bottom left corner
-                        evec_ri = [0, -1.]
-                        evec_le = [1., 0.]
+                        evec_ri = [0, -1.] # upwards == negative Y
+                        evec_le = [1., 0.] # to the right == positive X
                     elif walls_close[1] and walls_close[2]:
                         # bottom right corner
-                        evec_ri = [-1., 0.]
-                        evec_le = [0., -1.]
+                        evec_ri = [-1., 0.] # to the left == negative X
+                        evec_le = [0., -1.] # upwards = negative Y
                     elif walls_close[2] and walls_close[3]:
                         # top right corner
-                        evec_ri = [0., 1.]
-                        evec_le = [-1., 0.]
+                        evec_ri = [0., 1.]  # downwards == positive Y
+                        evec_le = [-1., 0.] # to the left == negative X
                     else:
                         # top left corner
-                        evec_ri = [1., 0.]
-                        evec_le = [0., 1.]
+                        evec_ri = [1., 0.] # to the right == positive X
+                        evec_le = [0., 1.] # downwards == positive Y
 
                 # Calculate turn angle for left turn
-                tvec_le = [cos(self.angle - 0.5*self.dphi_per_tick), sin(self.angle - 0.5*self.dphi_per_tick)]
+                tvec_le = [cos(self.angle + 0.5*self.dphi_per_tick), sin(self.angle + 0.5*self.dphi_per_tick)]
                 evasion_turn_angle_le = np.arccos(np.dot(evec_le,tvec_le))
                 crit_wall_dist_le = turn_radius * (1 + np.cos(pi - evasion_turn_angle_le))
                 # Distance to last possible (ultimate) turning point (UTP) for left evasion turn
@@ -304,7 +307,7 @@ class AIPlayer(Player):
                 logging.debug(f"{self} dist to left-turn UTP:  {dist_to_utp_le:>7.2f}")
 
                 # Calculate turn angle for right turn
-                tvec_ri = [cos(self.angle + 0.5 * self.dphi_per_tick), sin(self.angle + 0.5 * self.dphi_per_tick)]
+                tvec_ri = [cos(self.angle - 0.5 * self.dphi_per_tick), sin(self.angle - 0.5 * self.dphi_per_tick)]
                 evasion_turn_angle_ri = np.arccos(np.dot(evec_ri,tvec_ri))
                 crit_wall_dist_ri = turn_radius * (1 + np.cos(pi - evasion_turn_angle_ri))
                 # Distance to last possible (ultimate) turning point (UTP) for right evasion turn
@@ -349,7 +352,7 @@ class WallAvoidingAIPlayer(AIPlayer):
         self.turn_radius = min_turn_radius * safety_factor
         self.center_rect = pygame.rect.Rect(self.xmin + 2*self.turn_radius, self.ymin + 2*self.turn_radius,
                                             (self.xmax - self.xmin) - 4*self.turn_radius,
-                                            (self.xmax - self.xmin) - 4*self.turn_radius)
+                                            (self.ymax - self.ymin) - 4*self.turn_radius)
 
 
     def __str__(self):
