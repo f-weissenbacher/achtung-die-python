@@ -19,6 +19,17 @@ from players import *
 
 
 class AchtungDieKurveGame:
+    """
+    Coordinate system
+
+    o --------- > X
+    |
+    |
+    |
+    v
+    Y       z-axis points down into screen
+    """
+
 
     player_keys = {1:{'left':pygame.K_1, 'right':pygame.K_q},
                    2:{'left':pygame.K_x, 'right':pygame.K_c},
@@ -94,6 +105,7 @@ class AchtungDieKurveGame:
             attempt_counter += 1
 
         raise RuntimeError("Unable to generate valid start position!")
+
 
 
     def detect_wall_collision(self, player:Player):
@@ -248,7 +260,17 @@ class AchtungDieKurveGame:
         pygame.draw.line(self.screen, c, (0,2*R),(self.screen_width, 2*R), w)
         pygame.draw.line(self.screen, c, (0, self.screen_height - 2 * R), (self.screen_width, self.screen_height - 2 * R), w)
         pygame.draw.line(self.screen, c, (2*R,0),(2*R, self.screen_height), w)
-        pygame.draw.line(self.screen, c, (self.screen_width - 2*R,0),(self.screen_width - 2*R, self.screen_height), w)
+        pygame.draw.line(self.screen, c, (self.screen_width - 2*R,0), (self.screen_width - 2*R, self.screen_height), w)
+
+        c = pygame.color.Color("green")
+        rect = pygame.rect.Rect(R,R,self.screen_width - 2*R, self.screen_height - 2*R)
+        pygame.draw.rect(self.screen, c, rect=rect, width=w)
+
+
+    def draw_debug_info(self):
+        # Draw player info
+        for ap in self.active_players:
+            ap.draw_debug_info(self.screen)
 
     def tick_forward(self, draw=True):
         """
@@ -315,6 +337,27 @@ class AchtungDieKurveGame:
             self.draw_wall_zones()
 
         pygame.display.flip()
+
+
+    def wait_for_window_close(self):
+        # Main loop
+        while self.running:
+            # Look at every event in the queue
+            for event in pygame.event.get():
+                # Did the user hit a key?
+                if event.type == pygame.KEYDOWN:
+                    # Was it the Escape key? If so, stop the loop.
+                    if event.key == pygame.K_ESCAPE:
+                        self.running = False
+
+                # Did the user click the window close button? If so, stop the loop.
+                elif event.type == pygame.QUIT:
+                    self.running = False
+
+            if self.running is False:
+                logging.info("Game was stopped by user")
+                return
+
 
 
 
