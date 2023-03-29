@@ -51,11 +51,15 @@ class AchtungDieKurveGame:
         self.running = False
         self.screen_width = 800
         self.screen_height = 600
-        self.game_bounds = [0, self.screen_width, 0, self.screen_height]
         self.min_turn_radius = 0.05 * self.screen_width # minimum turn radius in pixels
         self.spawn_safety_distance = 0.5 * self.min_turn_radius
         #self.min_turn_radius = 100  # minimum turn radius in pixels
         self.player_speed = game_speed_factor * 0.075 * self.screen_width # pixels travelled per second of game time
+        self.player_radius = 2.0
+        self.game_bounds = [self.player_radius,
+                            self.screen_width - self.player_radius,
+                            self.player_radius,
+                            self.screen_height - self.player_radius]
 
         self.target_fps = target_fps
         #dt_per_tick = 1/self.target_fps
@@ -83,6 +87,7 @@ class AchtungDieKurveGame:
 
         # Debug flags
         self.run_until_last_player_dies = True
+        self.ignore_self_collisions = True
 
     @staticmethod
     def _roll_random_angle():
@@ -110,7 +115,7 @@ class AchtungDieKurveGame:
 
     def detect_wall_collision(self, player:Player):
         x,y = player.pos
-        return x <= 0 or x >= self.screen_width or y <= 0 or y >= self.screen_height
+        return x < self.game_bounds[0] or x > self.game_bounds[1] or y < self.game_bounds[2] or y > self.game_bounds[3]
 
     def spawn_player(self, idx, init_pos=None, init_angle=None, color=None, player_type=Player, **kwargs):
         if idx in [p.idx for p in self.players]:
@@ -130,6 +135,7 @@ class AchtungDieKurveGame:
                              dphi_per_tick=self.dphi_per_tick,
                              steer_left_key=self.player_keys[idx]['left'],
                              steer_right_key=self.player_keys[idx]['right'],
+                             radius=self.player_radius,
                              color=color,
                              )
 
@@ -211,7 +217,7 @@ class AchtungDieKurveGame:
                 self.disable_player(p)
 
             # Check self-collision
-            elif p.check_self_collision():
+            elif p.check_self_collision() and not self.ignore_self_collisions:
                 logging.info(f"Player {p.idx} collided with itself")
                 self.disable_player(p)
 

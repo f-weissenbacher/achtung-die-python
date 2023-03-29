@@ -25,7 +25,7 @@ class PlayerTurnState(IntEnum):
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, idx=1, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01,
+    def __init__(self, idx=1, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01, radius=2,
                  color=(255, 10, 10), steer_left_key=pygame.K_LEFT, steer_right_key=pygame.K_DOWN,
                  hole_width=3.0, startblock_length=100., min_dist_between_holes=200., max_dist_between_holes=1500.):
         """
@@ -64,7 +64,7 @@ class Player(pygame.sprite.Sprite):
         # self.score = 0 # Number of points earned by staying alive
 
         # Setup sprite == filled circle
-        self.radius = 2
+        self.radius = int(radius)
         self.surf = pygame.Surface((2 * self.radius, 2 * self.radius))
         pygame.draw.circle(self.surf, color, (self.radius, self.radius), self.radius, 0)
         self.surf.set_colorkey((0, 0, 0), RLEACCEL)  # set transparent color
@@ -204,8 +204,9 @@ class AIPlayer(Player):
 
         return keypresses
 
-    def _pos_inside_bounds(self, pos):
-        return self.xmin < pos[0] < self.xmax and self.ymin < pos[1] < self.ymax
+    def _pos_inside_bounds(self, pos, border_width=0.0):
+        return self.xmin + border_width < pos[0] < self.xmax - border_width and \
+               self.ymin + border_width < pos[1] < self.ymax - border_width
 
     def _dryrun_action(self, action:PlayerAction):
         if action == PlayerAction.SteerLeft:
@@ -218,7 +219,7 @@ class AIPlayer(Player):
         return self.pos + self.dist_per_tick * np.array([np.cos(new_angle), np.sin(new_angle)])
 
 
-    def wall_evasion_actions(self, turn_radius, safety_factor=2.0):
+    def wall_evasion_actions(self, turn_radius, safety_factor=3.0):
         """ Returns a selection of PlayerActions that the player can take and still be able to avoid a wall collision."""
         actions = [PlayerAction.SteerLeft, PlayerAction.KeepStraight, PlayerAction.SteerRight]
         vel_dir = np.array([np.cos(self.angle), np.sin(self.angle)])
@@ -237,7 +238,7 @@ class AIPlayer(Player):
         wall_distances = np.array([dist_to_left_wall, dist_to_bot_wall, dist_to_right_wall, dist_to_top_wall])
         logging.debug(f"WallAvoidingPlayer {self.idx} wall distances " + "[{:5.1f} {:5.1f} {:5.1f} {:5.1f}]".format(*wall_distances))
 
-        walls_close = wall_distances <= 2 * turn_radius
+        walls_close = wall_distances <= 2.1 * turn_radius
         num_walls_close = np.sum(walls_close)
 
         if num_walls_close == 0:
@@ -265,6 +266,8 @@ class AIPlayer(Player):
             #                 [1,0]])
             #R_ri = np.array([[0,1],
             #                 [-1,0]])
+            z_veldir = np.exp(1j * self.angle) # complex numbers to the rescue!
+            z_dphi_half = np.exp(1j * 0.5 * self.dphi_per_tick)
 
             left_turn_state = PlayerTurnState.Possible
             right_turn_state = PlayerTurnState.Possible
@@ -277,7 +280,9 @@ class AIPlayer(Player):
                 if num_walls_close == 1:
                     evec_ri = [-nvec[1], nvec[0]]
                     evec_le = [nvec[1], -nvec[0]]
+                    relevant_turns = ["left","right"]
                 else:
+                    # TODO: we dont to check left and right turn for each wall!
                     # 2 walls are close -> player is in corner
                     # Player is in one of the corners
                     # evec == escape vector == vector parallel to wall that leads away from the
@@ -285,52 +290,88 @@ class AIPlayer(Player):
                         # bottom left corner
                         evec_ri = [0, -1.] # upwards == negative Y
                         evec_le = [1., 0.] # to the right == positive X
+                        # left wall relevant for right turns, bottom wall for left turns
+                        if wall_idx == 0:
+                            relevant_turns = ["right"]
+                        else:
+                            relevant_turns = ["left"]
                     elif walls_close[1] and walls_close[2]:
                         # bottom right corner
+                        # bottom wall relevant for right turns, right wall for left turns
                         evec_ri = [-1., 0.] # to the left == negative X
                         evec_le = [0., -1.] # upwards = negative Y
+                        if wall_idx == 1:
+                            relevant_turns = ["right"]
+                        else:
+                            relevant_turns = ["left"]
                     elif walls_close[2] and walls_close[3]:
                         # top right corner
                         evec_ri = [0., 1.]  # downwards == positive Y
                         evec_le = [-1., 0.] # to the left == negative X
+                        # right wall relevant for right turns, top wall for left turns
+                        if wall_idx == 2:
+                            relevant_turns = ["right"]
+                        else:
+                            relevant_turns = ["left"]
                     else:
                         # top left corner
                         evec_ri = [1., 0.] # to the right == positive X
                         evec_le = [0., 1.] # downwards == positive Y
+                        # top wall relevant for right turns, left wall for left turns
+                        if wall_idx == 3:
+                            relevant_turns = ["right"]
+                        else:
+                            relevant_turns = ["left"]
 
-                # Calculate turn angle for left turn
-                tvec_le = [cos(self.angle + 0.5*self.dphi_per_tick), sin(self.angle + 0.5*self.dphi_per_tick)]
-                evasion_turn_angle_le = np.arccos(np.dot(evec_le,tvec_le))
-                crit_wall_dist_le = turn_radius * (1 + np.cos(pi - evasion_turn_angle_le))
-                # Distance to last possible (ultimate) turning point (UTP) for left evasion turn
-                dist_to_utp_le = (dist_to_wall - crit_wall_dist_le)/np.dot(nvec, tvec_le)
-                logging.debug(f"{self} dist to left-turn UTP:  {dist_to_utp_le:>7.2f}")
+                if "left" in relevant_turns:
+                    # Calculate turn angle for left turn
+                    # tvec_le = [cos(self.angle - 0.5*self.dphi_per_tick), sin(self.angle - 0.5*self.dphi_per_tick)]
+                    z_tvec_le = z_veldir / z_dphi_half # subtract angle of 0.5 dphi_per_tick
+                    tvec_le = [np.real(z_tvec_le), np.imag(z_tvec_le)]
+                    evasion_turn_angle_le = np.arccos(np.dot(evec_le,tvec_le))
+                    logging.debug(f"{self} left turn evasion angle {np.rad2deg(evasion_turn_angle_le):.2f} deg")
+                    if evasion_turn_angle_le < self.dphi_per_tick:
+                        logging.debug(f"{self} left evasion angle < dphi_per_tick --> evasion turn to the left trivially possible")
+                        dist_to_utp_le = np.inf
+                    else:
+                        crit_wall_dist_le = turn_radius * (1 + np.cos(pi - evasion_turn_angle_le))
+                        # Distance to last possible (ultimate) turning point (UTP) for left evasion turn
+                        dist_to_utp_le = (dist_to_wall - crit_wall_dist_le)/np.dot(nvec, tvec_le)
+                        logging.debug(f"{self} dist to left-turn UTP:  {dist_to_utp_le:>7.2f}")
 
-                # Calculate turn angle for right turn
-                tvec_ri = [cos(self.angle - 0.5 * self.dphi_per_tick), sin(self.angle - 0.5 * self.dphi_per_tick)]
-                evasion_turn_angle_ri = np.arccos(np.dot(evec_ri,tvec_ri))
-                crit_wall_dist_ri = turn_radius * (1 + np.cos(pi - evasion_turn_angle_ri))
-                # Distance to last possible (ultimate) turning point (UTP) for right evasion turn
-                dist_to_utp_ri = (dist_to_wall - crit_wall_dist_ri)/np.dot(nvec, tvec_ri)
-                logging.debug(f"{self} dist to right-turn UTP: {dist_to_utp_ri:>7.2f}")
+                    if dist_to_utp_le < 0.0:
+                        # Player is already past the left-turn UTP
+                        left_turn_state = PlayerTurnState.Impossible
+                    elif dist_to_utp_le < safety_factor * self.dist_per_tick and left_turn_state != PlayerTurnState.Impossible:
+                        # Evasion action is required: if no action is taken, player will go beyond the left-turn UTP with the next tick!
+                        left_turn_state = PlayerTurnState.Required
 
-                if dist_to_utp_le < 0.0:
-                    # Player is already past the left-turn UTP
-                    left_turn_state = PlayerTurnState.Impossible
-                elif dist_to_utp_le < safety_factor * self.dist_per_tick and left_turn_state != PlayerTurnState.Impossible:
-                    # Evasion action is required: if no action is taken, player will go beyond the left-turn UTP with the next tick!
-                    left_turn_state = PlayerTurnState.Required
+                if "right" in relevant_turns:
+                    # Calculate turn angle for right turn
+                    #tvec_ri = [cos(self.angle + 0.5 * self.dphi_per_tick), sin(self.angle + 0.5 * self.dphi_per_tick)]
+                    z_tvec_ri = z_veldir * z_dphi_half  # add angle of 0.5 dphi_per_tick
+                    tvec_ri = [np.real(z_tvec_ri), np.imag(z_tvec_ri)]
+                    evasion_turn_angle_ri = np.arccos(np.dot(evec_ri,tvec_ri))
+                    logging.debug(f"{self} right turn evasion angle {np.rad2deg(evasion_turn_angle_ri):.2f} deg")
+                    if evasion_turn_angle_ri < self.dphi_per_tick:
+                        logging.debug(f"{self} right evasion angle < dphi_per_tick --> evasion turn to the right trivially possible")
+                        dist_to_utp_ri = np.inf
+                    else:
+                        crit_wall_dist_ri = turn_radius * (1 + np.cos(pi - evasion_turn_angle_ri))
+                        # Distance to last possible (ultimate) turning point (UTP) for right evasion turn
+                        dist_to_utp_ri = (dist_to_wall - crit_wall_dist_ri)/np.dot(nvec, tvec_ri)
+                        logging.debug(f"{self} dist to right-turn UTP: {dist_to_utp_ri:>7.2f}")
 
-                if dist_to_utp_ri < 0.0:
-                    # Player is already past the right-turn UTP -
-                    right_turn_state = PlayerTurnState.Impossible
-                elif dist_to_utp_ri < safety_factor * self.dist_per_tick and right_turn_state != PlayerTurnState.Impossible:
-                    # Evasion action is required: if no action is taken, player will go beyond the right-turn UTP with the next tick!
-                    right_turn_state = PlayerTurnState.Required
+                    if dist_to_utp_ri < 0.0:
+                        # Player is already past the right-turn UTP -
+                        right_turn_state = PlayerTurnState.Impossible
+                    elif dist_to_utp_ri < safety_factor * self.dist_per_tick and right_turn_state != PlayerTurnState.Impossible:
+                        # Evasion action is required: if no action is taken, player will go beyond the right-turn UTP with the next tick!
+                        right_turn_state = PlayerTurnState.Required
 
             actions = []
             if PlayerTurnState.Possible in [left_turn_state, right_turn_state]:
-                if self._pos_inside_bounds(self._dryrun_action(PlayerAction.KeepStraight)):
+                if self._pos_inside_bounds(self._dryrun_action(PlayerAction.KeepStraight), border_width=self.radius):
                     actions.append(PlayerAction.KeepStraight)
 
             if left_turn_state.value >= PlayerTurnState.Required.value:
@@ -341,12 +382,13 @@ class AIPlayer(Player):
                 #  Player can choose to steer right
                 actions.append(PlayerAction.SteerRight)
 
+            logging.debug(f"Possible steering actions for wall evasion {actions}")
             return actions
 
 
 
 class WallAvoidingAIPlayer(AIPlayer):
-    def __init__(self,  min_turn_radius, safety_factor=1.02, **aiplayer_kwargs):
+    def __init__(self,  min_turn_radius, safety_factor=1.05, **aiplayer_kwargs):
         super().__init__(**aiplayer_kwargs)
         #self.min_turn_radius = min_turn_radius
         self.turn_radius = min_turn_radius * safety_factor
