@@ -18,9 +18,9 @@ class PlayerAction(IntEnum):
     KeepStraight = 0
     SteerRight = 1
 
-class PlayerTurnState(IntEnum):
+class EvasionTurnState(IntEnum):
     Impossible = 0
-    Required = 1
+    ActionRequired = 1
     Possible = 2
 
 
@@ -219,6 +219,27 @@ class AIPlayer(Player):
         return self.pos + self.dist_per_tick * np.array([np.cos(new_angle), np.sin(new_angle)])
 
 
+    def turn_centers(self, turn_radius):
+        w = np.sqrt(turn_radius ** 2 - 0.25 * self.dist_per_tick ** 2)
+        # left_turn_state = PlayerTurnState.Possible
+        # right_turn_state = PlayerTurnState.Possible
+
+        # prior_pos = self.pos - 0.5 * self.dist_per_tick * vel_dir # distance travelled in prior tick
+
+        turn_centers = {}
+        for turn_dir in ["left", "right"]:
+            # Vector from halfpoint between current and previous position to center of turning circle
+            if turn_dir == "left":
+                w_vec = w * np.array([np.cos(self.angle - np.pi / 2), np.sin(self.angle - np.pi / 2)])
+            else:
+                w_vec = w * np.array([np.cos(self.angle + np.pi / 2), np.sin(self.angle + np.pi / 2)])
+
+            # Center of turn circle
+            turn_centers[turn_dir] = self.pos - 0.5 * self.vel_vec + w_vec
+
+        return turn_centers
+
+
     def wall_evasion_actions(self, turn_radius, safety_factor=3.0):
         """ Returns a selection of PlayerActions that the player can take and still be able to avoid a wall collision."""
         actions = [PlayerAction.SteerLeft, PlayerAction.KeepStraight, PlayerAction.SteerRight]
@@ -238,7 +259,7 @@ class AIPlayer(Player):
         wall_distances = np.array([dist_to_left_wall, dist_to_bot_wall, dist_to_right_wall, dist_to_top_wall])
         logging.debug(f"WallAvoidingPlayer {self.idx} wall distances " + "[{:5.1f} {:5.1f} {:5.1f} {:5.1f}]".format(*wall_distances))
 
-        walls_close = wall_distances <= 2.1 * turn_radius
+        walls_close = wall_distances <= 2.5 * turn_radius
         num_walls_close = np.sum(walls_close)
 
         if num_walls_close == 0:
@@ -262,128 +283,113 @@ class AIPlayer(Player):
         else:
             # One or two walls critical
             # Rotation matrices:
-            #R_le = np.array([[0,-1],
-            #                 [1,0]])
-            #R_ri = np.array([[0,1],
-            #                 [-1,0]])
             z_veldir = np.exp(1j * self.angle) # complex numbers to the rescue!
             z_dphi_half = np.exp(1j * 0.5 * self.dphi_per_tick)
 
-            left_turn_state = PlayerTurnState.Possible
-            right_turn_state = PlayerTurnState.Possible
-            straight_possible = True
-            # For each critical wall, check if left and/or right evasion turns are possible
-            for wall_idx in np.argwhere(walls_critical).flatten():
-                dist_to_wall = float(wall_distances[wall_idx])
-                nvec = wall_nvecs[wall_idx]
-                logging.debug(f"{self} facing {wall_names[wall_idx]} wall")
-                if num_walls_close == 1:
-                    evec_ri = [-nvec[1], nvec[0]]
-                    evec_le = [nvec[1], -nvec[0]]
-                    relevant_turns = ["left","right"]
+            w = np.sqrt(turn_radius**2 - 0.25*self.dist_per_tick**2)
+            #left_turn_state = PlayerTurnState.Possible
+            #right_turn_state = PlayerTurnState.Possible
+
+            #prior_pos = self.pos - 0.5 * self.dist_per_tick * vel_dir # distance travelled in prior tick
+
+            turn_states = {}
+            for turn_dir in ["left","right"]:
+                # Vector from halfpoint between current and previous position to center of turning circle
+                if turn_dir == "left":
+                    w_vec = w * np.array([np.cos(self.angle - np.pi/2), np.sin(self.angle - np.pi/2)])
                 else:
-                    # TODO: we dont to check left and right turn for each wall!
-                    # 2 walls are close -> player is in corner
-                    # Player is in one of the corners
-                    # evec == escape vector == vector parallel to wall that leads away from the
-                    if walls_close[0] and walls_close[1]:
-                        # bottom left corner
-                        evec_ri = [0, -1.] # upwards == negative Y
-                        evec_le = [1., 0.] # to the right == positive X
-                        # left wall relevant for right turns, bottom wall for left turns
-                        if wall_idx == 0:
-                            relevant_turns = ["right"]
-                        else:
-                            relevant_turns = ["left"]
-                    elif walls_close[1] and walls_close[2]:
-                        # bottom right corner
-                        # bottom wall relevant for right turns, right wall for left turns
-                        evec_ri = [-1., 0.] # to the left == negative X
-                        evec_le = [0., -1.] # upwards = negative Y
-                        if wall_idx == 1:
-                            relevant_turns = ["right"]
-                        else:
-                            relevant_turns = ["left"]
-                    elif walls_close[2] and walls_close[3]:
-                        # top right corner
-                        evec_ri = [0., 1.]  # downwards == positive Y
-                        evec_le = [-1., 0.] # to the left == negative X
-                        # right wall relevant for right turns, top wall for left turns
-                        if wall_idx == 2:
-                            relevant_turns = ["right"]
-                        else:
-                            relevant_turns = ["left"]
-                    else:
-                        # top left corner
-                        evec_ri = [1., 0.] # to the right == positive X
-                        evec_le = [0., 1.] # downwards == positive Y
-                        # top wall relevant for right turns, left wall for left turns
-                        if wall_idx == 3:
-                            relevant_turns = ["right"]
-                        else:
-                            relevant_turns = ["left"]
+                    w_vec = w * np.array([np.cos(self.angle + np.pi / 2), np.sin(self.angle + np.pi / 2)])
 
-                if "left" in relevant_turns:
-                    # Calculate turn angle for left turn
-                    # tvec_le = [cos(self.angle - 0.5*self.dphi_per_tick), sin(self.angle - 0.5*self.dphi_per_tick)]
-                    z_tvec_le = z_veldir / z_dphi_half # subtract angle of 0.5 dphi_per_tick
-                    tvec_le = [np.real(z_tvec_le), np.imag(z_tvec_le)]
-                    evasion_turn_angle_le = np.arccos(np.dot(evec_le,tvec_le))
-                    logging.debug(f"{self} left turn evasion angle {np.rad2deg(evasion_turn_angle_le):.2f} deg")
-                    if evasion_turn_angle_le < self.dphi_per_tick:
-                        logging.debug(f"{self} left evasion angle < dphi_per_tick --> evasion turn to the left trivially possible")
-                        dist_to_utp_le = np.inf
-                    else:
-                        crit_wall_dist_le = turn_radius * (1 + np.cos(pi - evasion_turn_angle_le))
-                        # Distance to last possible (ultimate) turning point (UTP) for left evasion turn
-                        dist_to_utp_le = (dist_to_wall - crit_wall_dist_le)/np.dot(nvec, tvec_le)
-                        logging.debug(f"{self} dist to left-turn UTP:  {dist_to_utp_le:>7.2f}")
+                # Center of turn circle
+                turn_center = self.pos - 0.5 * self.dist_per_tick * vel_dir + w_vec
 
-                    if dist_to_utp_le < 0.0:
-                        # Player is already past the left-turn UTP
-                        left_turn_state = PlayerTurnState.Impossible
-                    elif dist_to_utp_le < safety_factor * self.dist_per_tick and left_turn_state != PlayerTurnState.Impossible:
-                        # Evasion action is required: if no action is taken, player will go beyond the left-turn UTP with the next tick!
-                        left_turn_state = PlayerTurnState.Required
+                # Calculate critical/extremal points on current turning circle
+                extremal_points = [turn_center + turn_radius * np.array([-1., 0.]),  # left
+                                   turn_center + turn_radius * np.array([0., 1.]),   # bottom (Y-axis is inverted!)
+                                   turn_center + turn_radius * np.array([1., 0.]),   # right
+                                   turn_center + turn_radius * np.array([0., -1.]),  # top (Y-axis is inverted!)
+                                   ]
+                extremal_points = np.asarray(extremal_points)
 
-                if "right" in relevant_turns:
-                    # Calculate turn angle for right turn
-                    #tvec_ri = [cos(self.angle + 0.5 * self.dphi_per_tick), sin(self.angle + 0.5 * self.dphi_per_tick)]
-                    z_tvec_ri = z_veldir * z_dphi_half  # add angle of 0.5 dphi_per_tick
-                    tvec_ri = [np.real(z_tvec_ri), np.imag(z_tvec_ri)]
-                    evasion_turn_angle_ri = np.arccos(np.dot(evec_ri,tvec_ri))
-                    logging.debug(f"{self} right turn evasion angle {np.rad2deg(evasion_turn_angle_ri):.2f} deg")
-                    if evasion_turn_angle_ri < self.dphi_per_tick:
-                        logging.debug(f"{self} right evasion angle < dphi_per_tick --> evasion turn to the right trivially possible")
-                        dist_to_utp_ri = np.inf
-                    else:
-                        crit_wall_dist_ri = turn_radius * (1 + np.cos(pi - evasion_turn_angle_ri))
-                        # Distance to last possible (ultimate) turning point (UTP) for right evasion turn
-                        dist_to_utp_ri = (dist_to_wall - crit_wall_dist_ri)/np.dot(nvec, tvec_ri)
-                        logging.debug(f"{self} dist to right-turn UTP: {dist_to_utp_ri:>7.2f}")
+                # Check if turn is possible at the current position
+                x_ok = np.logical_and(extremal_points[:,0] > self.xmin, extremal_points[:,0] < self.xmax)
+                y_ok = np.logical_and(extremal_points[:,1] > self.ymin, extremal_points[:,1] < self.ymax)
+                extrema_in_bounds = np.logical_and(x_ok, y_ok)
 
-                    if dist_to_utp_ri < 0.0:
-                        # Player is already past the right-turn UTP -
-                        right_turn_state = PlayerTurnState.Impossible
-                    elif dist_to_utp_ri < safety_factor * self.dist_per_tick and right_turn_state != PlayerTurnState.Impossible:
-                        # Evasion action is required: if no action is taken, player will go beyond the right-turn UTP with the next tick!
-                        right_turn_state = PlayerTurnState.Required
+                problematic_extrema = np.argwhere(extrema_in_bounds == False).flatten()
 
-            actions = []
-            if PlayerTurnState.Possible in [left_turn_state, right_turn_state]:
-                if self._pos_inside_bounds(self._dryrun_action(PlayerAction.KeepStraight), border_width=self.radius):
-                    actions.append(PlayerAction.KeepStraight)
+                if len(problematic_extrema) > 0:
+                    turn_states[turn_dir] = EvasionTurnState.Impossible
+                    logging.debug(f"{self} {turn_dir} turn evasion not possible due to conflict with "
+                                  f"{wall_names[problematic_extrema]} wall(s)")
+                else:
+                    turn_states[turn_dir] = EvasionTurnState.Possible
 
-            if left_turn_state.value >= PlayerTurnState.Required.value:
-                # Player can choose to steer left
-                actions.append(PlayerAction.SteerLeft)
+                    # Check if evasion turn would still be possible in the next tick if no action is taken now
+                    extremal_points += self.dist_per_tick * vel_dir
 
-            if right_turn_state.value >= PlayerTurnState.Required.value:
-                #  Player can choose to steer right
-                actions.append(PlayerAction.SteerRight)
+                    x_ok = np.logical_and(extremal_points[:, 0] > self.xmin, extremal_points[:, 0] < self.xmax)
+                    y_ok = np.logical_and(extremal_points[:, 1] > self.ymin, extremal_points[:, 1] < self.ymax)
+                    extrema_in_bounds = np.logical_and(x_ok, y_ok)
+
+                    problematic_extrema = np.argwhere(extrema_in_bounds[walls_critical] == False).flatten()
+                    if problematic_extrema.size > 0:
+                        turn_states[turn_dir] = EvasionTurnState.ActionRequired
+                        logging.debug(f"{self} {turn_dir} turn evasion requires immediate action. conflict with "
+                                      f"{wall_names[problematic_extrema]} wall(s) projected for next tick")
+
+
+            impossible_turns = [td for td,ts in turn_states.items() if ts == EvasionTurnState.Impossible]
+            required_turns = [td for td,ts in turn_states.items() if ts == EvasionTurnState.ActionRequired]
+            possible_turns = [td for td,ts in turn_states.items() if ts == EvasionTurnState.Possible]
+
+            if len(impossible_turns) == 0:
+                # both left and right turn still possible
+                # check if both need immediate action
+                if len(required_turns) == 2:
+                    # Player has to steer to avoid future collision, but the direction is arbitrary
+                    actions = [PlayerAction.SteerLeft, PlayerAction.SteerRight]
+                else:
+                    # At least 1 turn is non-compulsory, player can choose to go straight as well
+                    actions = [PlayerAction.SteerLeft, PlayerAction.KeepStraight,PlayerAction.SteerRight]
+
+            elif len(impossible_turns) == 1:
+                # One turn is still possible. Check if it requires immediate action
+                if len(required_turns) == 0:
+                    # Remaining turn is not compulsory.
+                    actions = [PlayerAction.SteerLeft if possible_turns[0] == "left" else PlayerAction.SteerRight]
+
+                    # Check if straight action is possible as well
+                    if self._pos_inside_bounds(self._dryrun_action(PlayerAction.KeepStraight)):
+                        actions.append(PlayerAction.KeepStraight)
+                elif len(required_turns) == 1:
+                    # Remaining turn is compulsory
+                    actions = [PlayerAction.SteerLeft if required_turns[0] == "left" else PlayerAction.SteerRight]
+                else:
+                    # This should not happen
+                    raise RuntimeError("There should not be more than 1 required evasion turn if the other evasion turn is impossible!")
+
+            else:
+                # no evasion turns are possible --> player has already failed, will eventually hit the wall
+                actions = []
+
 
             logging.debug(f"Possible steering actions for wall evasion {actions}")
             return actions
+
+
+    # DEBUG Utilities ------------------------------
+    def draw_turn_circles(self, surface, turn_radius):
+        """ draw turn circles for player. left circle yellowish, right circle light blue
+        """
+        turn_centers = self.turn_centers(turn_radius)
+
+        # left turn circle
+        pygame.draw.circle(surface, pygame.Color("goldenrod"), turn_centers['left'], turn_radius, width=1)
+
+        # left turn circle
+        pygame.draw.circle(surface, pygame.Color("deepskyblue"), turn_centers['right'], turn_radius, width=1)
+
 
 
 
