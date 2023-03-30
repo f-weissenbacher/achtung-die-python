@@ -240,7 +240,7 @@ class AIPlayer(Player):
         return turn_centers
 
 
-    def wall_evasion_actions(self, turn_radius, safety_factor=3.0):
+    def wall_evasion_actions(self, turn_radius):
         """ Returns a selection of PlayerActions that the player can take and still be able to avoid a wall collision."""
         actions = [PlayerAction.SteerLeft, PlayerAction.KeepStraight, PlayerAction.SteerRight]
         vel_dir = np.array([np.cos(self.angle), np.sin(self.angle)])
@@ -429,12 +429,62 @@ class WallAvoidingAIPlayer(AIPlayer):
 
 
 
-class RandomSteeringAIPlayer(AIPlayer):
-    def __init__(self, turn_angles=(0.2 * pi, 1.5 * pi), straight_lengths=(0, 100.0), **aiplayer_kwargs):
+class RandomSteeringAIPlayer(WallAvoidingAIPlayer):
+    def __init__(self, turn_angles=(0.2 * pi, 1.0 * pi), straight_lengths=(0, 200.0), **aiplayer_kwargs):
         super().__init__(**aiplayer_kwargs)
 
         self.turn_angles = turn_angles  # minimum/maximum angle of a turn (in radians)
         self.straight_lengths = straight_lengths  # minimum/maximum distance travelled in straight line (in game units)
+
+        self.current_state = None
+        self.ticks_till_next_state = 0
+
+    def __str__(self):
+        return f"RandomSteeringAIPlayer {self.idx}"
+
+
+    def _roll_new_state(self):
+        # Turn or keep straight
+        new_state = random.choice([PlayerAction.KeepStraight, PlayerAction.SteerLeft,PlayerAction.SteerRight])
+
+        if new_state != PlayerAction.KeepStraight:
+            turn_dir = "left" if new_state == PlayerAction.SteerLeft else "right"
+            angle = self.turn_angles[0] + np.ptp(self.turn_angles) * random.random()
+            self.ticks_till_next_state = int(angle/self.dphi_per_tick)
+            logging.debug(f"{self} new plan: turn {turn_dir} {np.rad2deg(angle):.2f} degrees == {self.ticks_till_next_state} ticks")
+        else:
+            length = self.straight_lengths[0] + np.ptp(self.straight_lengths) * random.random()
+            self.ticks_till_next_state = int(length/self.dist_per_tick)
+            logging.debug(f"{self} new plan: keep straight for {length:.1f} game units == {self.ticks_till_next_state} ticks")
+
+        self.current_state = new_state
+
+
+    def next_action(self, game_state):
+        """
+
+        Args:
+            game_state: not used
+
+        Returns: next PlayerAction
+
+        """
+
+        self.ticks_till_next_state -= 1
+        possible_actions = self.wall_evasion_actions(self.turn_radius)
+
+        if len(possible_actions) == 0:
+            return PlayerAction.KeepStraight
+        elif len(possible_actions) == 1:
+            return possible_actions[0]
+
+        if self.current_state is None or self.ticks_till_next_state <= 0:
+            self._roll_new_state()
+
+        if self.current_state in possible_actions:
+            return self.current_state
+        else:
+            return random.choice(possible_actions)
 
 
 
