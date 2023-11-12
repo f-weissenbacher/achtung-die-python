@@ -25,7 +25,7 @@ class EvasionTurnState(IntEnum):
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, idx=1, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01, radius=2,
+    def __init__(self, idx=1, name=None, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01, radius=2,
                  color=(255, 10, 10), steer_left_key=pygame.K_LEFT, steer_right_key=pygame.K_DOWN,
                  hole_width=3.0, startblock_length=100., min_dist_between_holes=200., max_dist_between_holes=1500.):
         """
@@ -53,6 +53,7 @@ class Player(pygame.sprite.Sprite):
 
         super(Player, self).__init__()
         self.idx = idx
+        self.name = name
         self.pos = np.asarray(init_pos, dtype=float)  # x-position in game world (pixel coordinates)
         self.dist_per_tick = dist_per_tick
         self.dphi_per_tick = dphi_per_tick
@@ -70,6 +71,7 @@ class Player(pygame.sprite.Sprite):
         self.surf.set_colorkey((0, 0, 0), RLEACCEL)  # set transparent color
         #self.rect = self.surf.get_rect(center=self.pos)
         self.trail = [self.pos.copy()]  # Trail behind player (in cartesian coordinates)
+        self.angle_history = [self.angle]
 
         # Hole settings
         self.hole_width = 2 * self.radius * hole_width  # hole width in game units (px)
@@ -133,6 +135,14 @@ class Player(pygame.sprite.Sprite):
         else:
             self.trail.append(self.pos.copy())  # save updated position in history
 
+    def undo_last_move(self):
+        """ Undo the last move. Assumes that no steering has yet been applied in this turn"""
+        self.pos -= self.vel_vec
+        self.trail.pop(-1)
+        self.dist_travelled -= self.dist_per_tick
+        self.dist_to_next_hole -= self.dist_per_tick
+
+
     def draw(self, surface):
         """ Draw on surface """
         # blit yourself at your current position
@@ -169,6 +179,20 @@ class Player(pygame.sprite.Sprite):
             return True
         else:
             return False
+
+
+class HumanPlayer(Player):
+    def __init__(self, name=None, **player_kwargs):
+        self.name = name
+
+        super(HumanPlayer, self).__init__(**player_kwargs)
+
+
+    def __str__(self):
+        if self.name is None:
+            return f"Player {self.idx}"
+        else:
+            return "'" + self.name + "'"
 
 
 class AIPlayer(Player):

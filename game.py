@@ -39,12 +39,12 @@ class AchtungDieKurveGame:
                    6: {'left': pygame.K_KP0, 'right': pygame.K_KP_PERIOD},
                    }
 
-    player_colors = {1: pygame.Color("red"),
-                     2: pygame.Color("yellow"),
-                     3: pygame.Color("orange"),
-                     4: pygame.Color("lime"),
-                     5: pygame.Color("magenta"),
-                     6: pygame.Color("turquoise1"),
+    player_colors = {1: "red",
+                     2: "yellow",
+                     3: "orange",
+                     4: "lime",
+                     5: "magenta",
+                     6: "turquoise1",
                      }
 
     def __init__(self, target_fps=30, game_speed_factor=1.0):
@@ -86,8 +86,8 @@ class AchtungDieKurveGame:
         self.clock = pygame.time.Clock()
 
         # Debug flags
-        self.run_until_last_player_dies = True
-        self.ignore_self_collisions = True
+        self.run_until_last_player_dies = False
+        self.ignore_self_collisions = False
 
     @staticmethod
     def _roll_random_angle():
@@ -130,6 +130,13 @@ class AchtungDieKurveGame:
         if color is None:
             color = self.player_colors[idx]
 
+        if not isinstance(color, pygame.Color):
+            # The pygame.Color constructor accepts:
+            # - a pygame.Color
+            # - the name of a color in pygame.colordict.THECOLORS
+            # - a RGB tuple
+            color = pygame.Color(color)
+
         player_kwargs = dict(idx=idx, init_pos=init_pos, init_angle=init_angle,
                              dist_per_tick=self.dist_per_tick,
                              dphi_per_tick=self.dphi_per_tick,
@@ -139,8 +146,8 @@ class AchtungDieKurveGame:
                              color=color,
                              )
 
-        if player_type == "human" or player_type == Player:
-            p = Player(**player_kwargs)
+        if player_type == "human" or player_type in [Player,HumanPlayer]:
+            p = HumanPlayer(name=kwargs['name'], **player_kwargs)
         elif issubclass(player_type, AIPlayer):
             aiplayer_kwargs = player_kwargs
             aiplayer_kwargs.update(kwargs)
@@ -299,7 +306,8 @@ class AchtungDieKurveGame:
     def reverse_tick(self):
         "Step back game by 1 tick"
 
-        #for p in self.players:
+        for p in self.players:
+            p.undo_last_move()
 
     def run_game_loop(self):
         self.draw_start_positions()
