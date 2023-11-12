@@ -16,7 +16,7 @@ from players import *
 # Define the enemy object by extending pygame.sprite.Sprite
 
 # The surface you draw on the screen is now an attribute of 'enemy'
-
+import colorama
 
 class AchtungDieKurveGame:
     """
@@ -39,12 +39,12 @@ class AchtungDieKurveGame:
                    6: {'left': pygame.K_KP0, 'right': pygame.K_KP_PERIOD},
                    }
 
-    player_colors = {1: "red",
-                     2: "yellow",
-                     3: "orange",
-                     4: "lime",
-                     5: "magenta",
-                     6: "turquoise1",
+    player_colors = {1: pygame.Color("red"),
+                     2: pygame.Color("yellow"),
+                     3: pygame.Color("orange"),
+                     4: pygame.Color("lime"),
+                     5: pygame.Color("magenta"),
+                     6: pygame.Color("turquoise1"),
                      }
 
     def __init__(self, target_fps=30, game_speed_factor=1.0):
@@ -88,6 +88,9 @@ class AchtungDieKurveGame:
         # Debug flags
         self.run_until_last_player_dies = False
         self.ignore_self_collisions = False
+
+        colorama.init()
+
 
     @staticmethod
     def _roll_random_angle():
