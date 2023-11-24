@@ -33,4 +33,7 @@ class DummyPlayer(Player):
     def steer_right(self):
         self.angle += self.dphi_per_tick
 
+    def move(self, log=False):
+        super().move(False)
+
 

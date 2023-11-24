@@ -214,7 +214,7 @@ class NStepPlanPlayer(AIPlayer):
             trails_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
 
             coll_color = copy.copy(self.color)
-            coll_color.a = 80
+            coll_color.a = 60
 
             for coll_trail in self.collidable_trails.geoms:
                 pygame.draw.polygon(trails_surf, color=coll_color, points=coll_trail.exterior.coords, width=0)

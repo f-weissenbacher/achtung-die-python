@@ -190,15 +190,17 @@ class RandomSteeringAIPlayer(WallAvoidingAIPlayer):
 
     def _roll_new_state(self):
         # Turn or keep straight
-        new_state = random.choice([PlayerAction.KeepStraight, PlayerAction.SteerLeft,PlayerAction.SteerRight])
+
+        potential_actions = [PlayerAction.KeepStraight, PlayerAction.SteerLeft,PlayerAction.SteerRight]
+        new_state = potential_actions[np.random.randint(0,3)]
 
         if new_state != PlayerAction.KeepStraight:
             turn_dir = "left" if new_state == PlayerAction.SteerLeft else "right"
-            angle = self.turn_angles[0] + np.ptp(self.turn_angles) * random.random()
+            angle = self.turn_angles[0] + np.ptp(self.turn_angles) * np.random.random()
             self.ticks_till_next_state = int(angle/self.dphi_per_tick)
             logging.debug(f"{self} new plan: turn {turn_dir} {np.rad2deg(angle):.2f} degrees == {self.ticks_till_next_state} ticks")
         else:
-            length = self.straight_lengths[0] + np.ptp(self.straight_lengths) * random.random()
+            length = self.straight_lengths[0] + np.ptp(self.straight_lengths) * np.random.random()
             self.ticks_till_next_state = int(length/self.dist_per_tick)
             logging.debug(f"{self} new plan: keep straight for {length:.1f} game units == {self.ticks_till_next_state} ticks")
 
@@ -229,7 +231,7 @@ class RandomSteeringAIPlayer(WallAvoidingAIPlayer):
         if self.current_state in possible_actions:
             return self.current_state
         else:
-            return random.choice(possible_actions)
+            return possible_actions[np.random.randint(0,len(possible_actions))]
 
 
 

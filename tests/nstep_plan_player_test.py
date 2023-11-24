@@ -6,7 +6,7 @@ import numpy as np
 seed = np.random.randint(1,20000)
 #seed = 16834
 #seed = 19421
-seed = 13798   # very nice at 30 fps
+#seed = 13798   # very nice at 30 fps
 print("Seed: ", seed)
 np.random.seed(seed)
 
@@ -15,7 +15,7 @@ from game import AchtungDieKurveGame
 from players.aiplayers import NStepPlanPlayer, WallAvoidingAIPlayer
 
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format="%(relativeCreated)d %(levelname)s [%(module)s.%(funcName)s:%(lineno)d] - %(message)s")
 
 game = AchtungDieKurveGame(target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=True,
@@ -34,8 +34,10 @@ game = AchtungDieKurveGame(target_fps=30, game_speed_factor=1.0, run_until_last_
 
 dist_per_step = 55.
 ticks_per_step = int(dist_per_step/game.dist_per_tick)
+plan_update_period=int(0.15*ticks_per_step)
+print("Plan update", plan_update_period)
 p_ut = game.spawn_player(2, init_pos=(400,200), init_angle=np.deg2rad(0.), player_type=NStepPlanPlayer, num_steps=2,
-                         ticks_per_step=ticks_per_step, startblock_length=50, plan_update_period=int(0.6*ticks_per_step))
+                         ticks_per_step=ticks_per_step, startblock_length=50, plan_update_period=plan_update_period)
 
 #p_ut = game.players[0] # player under test
 
@@ -49,11 +51,14 @@ p_ut = game.spawn_player(2, init_pos=(400,200), init_angle=np.deg2rad(0.), playe
 max_ticks = 5000
 tick = 0
 game.running = True
+tf_dts = []
 while game.running and tick <= max_ticks:
     game.draw_wall_zones()
     #game.draw_debug_info()
     game.flush_display()
+    tf_t0 = time.time()
     game.tick_forward()
+    tf_dts.append(time.time() - tf_t0)
     #p1.draw_turn_circles(game.screen, p1.turn_radius)
     game.flush_display()
     tick += 1
@@ -67,6 +72,7 @@ time.sleep(0.5)
 game.print_scoreboard()
 
 print("Number of plan  updates", p_ut.num_updates)
+print("Average ")
 
 game.wait_for_window_close()
 

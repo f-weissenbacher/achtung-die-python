@@ -287,11 +287,6 @@ class AchtungDieKurveGame:
                         break
 
 
-    def draw_game_state(self):
-        """ Draws the current game state"""
-        raise NotImplementedError
-
-
     def get_game_state(self):
         game_state = {}
         for p in self.players:
@@ -299,6 +294,12 @@ class AchtungDieKurveGame:
 
         return game_state
 
+    def save_game_state(self, fp:str, game_state=None):
+        import pickle
+        if game_state is None:
+            game_state = self.get_game_state()
+        with open(fp,"wb") as f:
+           pickle.dump(game_state, f)
 
     def draw_wall_zones(self):
         c = pygame.color.Color("cyan")
@@ -466,6 +467,9 @@ class AchtungDieKurveGame:
         # Unwind pygame engine
         pygame.display.quit()
         pygame.quit()
+
+
+
 
 
 

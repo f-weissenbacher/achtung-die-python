@@ -137,16 +137,18 @@ class Player(pygame.sprite.Sprite):
         return dist
 
     # move player forward (distance travelled during 1 tick)
-    def move(self):
+    def move(self, log=False):
         dpos = self.vel_vec  # change in position
         self.pos += dpos
         self.dist_travelled += self.dist_per_tick
         self.total_reward += self.dist_per_tick
         self.dist_to_next_hole -= self.dist_per_tick
         # self.rect.move_ip(dx, dy) # update sprite
-        logger.debug(f"moving {self} by {dpos} to {self.pos}")
+        if log:
+            logger.debug(f"moving {self} by {dpos} to {self.pos}")
         if self.active_hole:
-            logger.debug(f"active hole for Player {self.idx}")
+            if log:
+                logger.debug(f"active hole for Player {self.idx}")
             self.trail.append(np.array([np.nan] * 2))
             if self.dist_to_next_hole < -self.hole_width:
                 # Hole ends with this tick, roll distance to next hole
