@@ -1,10 +1,5 @@
-import logging
-import random
-
-import numpy as np
-
 from game import AchtungDieKurveGame
-from players import WallAvoidingAIPlayer, RandomSteeringAIPlayer, HumanPlayer
+from players import *
 
 import pygame
 

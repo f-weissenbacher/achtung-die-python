@@ -5,17 +5,17 @@ import random
 # Import pygame.locals for easier access to key coordinates
 # Updated to conform to flake8 and black standards
 import pygame
-from pygame.locals import RLEACCEL
 import pygame.freetype  # Import the freetype module.
 
-
+import numpy as np
 from math import pi,sqrt, asin
 
-from players import *
+from players.player_base import Player
+from players.human_player import HumanPlayer
+from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
 
 # Define the enemy object by extending pygame.sprite.Sprite
 
-# The surface you draw on the screen is now an attribute of 'enemy'
 import colorama
 
 class AchtungDieKurveGame:
@@ -30,24 +30,41 @@ class AchtungDieKurveGame:
     Y       z-axis points down into screen
     """
 
+    valid_player_indices = [0, 1, 2, 3, 4, 5, 6]
 
-    player_keys = {1:{'left':pygame.K_1, 'right':pygame.K_q},
-                   2:{'left':pygame.K_x, 'right':pygame.K_c},
-                   3:{'left':pygame.K_m, 'right':pygame.K_COMMA},
-                   4:{'left':pygame.K_LEFT, 'right':pygame.K_DOWN},
-                   5:{'left':pygame.K_KP_DIVIDE, 'right':pygame.K_KP_MULTIPLY},
+    player_keys = {0: {'left': pygame.K_F1, 'right': pygame.K_F2}, # virtual player
+                   1: {'left': pygame.K_1, 'right': pygame.K_q},
+                   2: {'left': pygame.K_x, 'right': pygame.K_c},
+                   3: {'left': pygame.K_m, 'right': pygame.K_COMMA},
+                   4: {'left': pygame.K_LEFT, 'right': pygame.K_DOWN},
+                   5: {'left': pygame.K_KP_DIVIDE, 'right': pygame.K_KP_MULTIPLY},
                    6: {'left': pygame.K_KP0, 'right': pygame.K_KP_PERIOD},
                    }
 
-    player_colors = {1: pygame.Color("red"),
-                     2: pygame.Color("yellow"),
-                     3: pygame.Color("orange"),
-                     4: pygame.Color("lime"),
-                     5: pygame.Color("magenta"),
-                     6: pygame.Color("turquoise1"),
+    #player_ = {0: "Gray", 1: "Red", 2: "Yellow", 3: "Orange", 4: "Green", 5: "Magenta", 6: "Blue"}
+
+    player_colors = {0: ("Gray", pygame.Color('gray')),   # virtual player
+                     1: ("Red", pygame.Color("red")),
+                     2: ("Yellow", pygame.Color("yellow")),
+                     3: ("Orange", pygame.Color("orange")),
+                     4: ("Green", pygame.Color("lime")),
+                     5: ("Magenta", pygame.Color("magenta")),
+                     6: ("Blue", pygame.Color("turquoise1")),
                      }
 
-    def __init__(self, target_fps=30, game_speed_factor=1.0):
+    def __init__(self, target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
+                 ignore_self_collisions=False, mode="gui"):
+        """
+
+        Args:
+            target_fps:
+            game_speed_factor:
+            run_until_last_player_dies:
+            ignore_self_collisions:
+            mode:
+        """
+        if mode in ["gui", "gui-debug", "headless"]:
+            self.mode = mode
         self.running = False
         self.screen_width = 800
         self.screen_height = 600
@@ -81,13 +98,13 @@ class AchtungDieKurveGame:
         # Create the screen object
         # The size is determined by the constant SCREEN_WIDTH and SCREEN_HEIGHT
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-
+        self.screen.fill(pygame.Color(30,30,30))
         # Setup game clock
         self.clock = pygame.time.Clock()
 
         # Debug flags
-        self.run_until_last_player_dies = False
-        self.ignore_self_collisions = False
+        self.run_until_last_player_dies = run_until_last_player_dies
+        self.ignore_self_collisions = ignore_self_collisions
 
         colorama.init()
 
@@ -120,7 +137,9 @@ class AchtungDieKurveGame:
         x,y = player.pos
         return x < self.game_bounds[0] or x > self.game_bounds[1] or y < self.game_bounds[2] or y > self.game_bounds[3]
 
-    def spawn_player(self, idx, init_pos=None, init_angle=None, color=None, player_type=Player, **kwargs):
+    def spawn_player(self, idx, init_pos=None, init_angle=None, player_type=Player, **kwargs):
+        assert idx in self.valid_player_indices
+
         if idx in [p.idx for p in self.players]:
             raise ValueError(f"Player {idx} already exists")
 
@@ -130,8 +149,7 @@ class AchtungDieKurveGame:
         if init_angle is None:
             init_angle = self._roll_random_angle()
 
-        if color is None:
-            color = self.player_colors[idx]
+        color_name, color = self.player_colors[idx]
 
         if not isinstance(color, pygame.Color):
             # The pygame.Color constructor accepts:
@@ -146,10 +164,12 @@ class AchtungDieKurveGame:
                              steer_left_key=self.player_keys[idx]['left'],
                              steer_right_key=self.player_keys[idx]['right'],
                              radius=self.player_radius,
-                             color=color,
+                             color=color, color_name=color_name,
                              )
 
         if player_type == "human" or player_type in [Player,HumanPlayer]:
+            if 'name' not in kwargs:
+                kwargs['name'] = 'Unnamed'
             p = HumanPlayer(name=kwargs['name'], **player_kwargs)
         elif issubclass(player_type, AIPlayer):
             aiplayer_kwargs = player_kwargs
@@ -159,6 +179,8 @@ class AchtungDieKurveGame:
                 p = WallAvoidingAIPlayer(**aiplayer_kwargs)
             elif player_type == RandomSteeringAIPlayer:
                 p = RandomSteeringAIPlayer(**aiplayer_kwargs)
+            elif player_type == NStepPlanPlayer:
+                p = NStepPlanPlayer(**aiplayer_kwargs)
             else:
                 raise ValueError(f"Invalid AI player type {player_type}")
         else:
@@ -166,6 +188,8 @@ class AchtungDieKurveGame:
 
         self.players.append(p)
         self.active_players.append(p)
+
+        return p
 
 
     def disable_player(self, p):
@@ -205,7 +229,7 @@ class AchtungDieKurveGame:
         pygame.display.flip()
 
 
-    def move_players(self, pressed_keys, draw=True):
+    def move_players(self, pressed_keys, draw=True, draw_debug=False):
         """ Advance players by one tick/frame"""
         running = True
 
@@ -220,15 +244,17 @@ class AchtungDieKurveGame:
             # Draw player at its current position
             if draw:
                 p.draw(self.screen)
+            if draw_debug:
+                p.draw_debug_info(self.screen)
 
             # Detect wall collisions
             if self.detect_wall_collision(p):
-                logging.info(f"Player {p.idx} hit the walls")
+                logging.info(f"{p} hit the walls")
                 self.disable_player(p)
 
             # Check self-collision
             elif p.check_self_collision() and not self.ignore_self_collisions:
-                logging.info(f"Player {p.idx} collided with itself")
+                logging.info(f"{p} collided with itself")
                 self.disable_player(p)
 
             else:
@@ -237,15 +263,15 @@ class AchtungDieKurveGame:
                     if p == p2:
                         continue
                     elif p.check_player_collision(p2):
-                        logging.info(f"Player {p.idx} collided with player {p2.idx}")
+                        logging.info(f"{p} collided with {p2}")
                         self.disable_player(p)
                         break
 
         if len(self.active_players) == 1:
             winner = self.active_players[0]
-            win_msg = f"Player {winner.idx} won!"
-            logging.info(win_msg)
-            if draw:
+            win_msg = f"{winner} won!"
+            #logging.info(win_msg)
+            if draw and not draw_debug:
                 self.font.render_to(self.screen, (int(0.25 * self.screen_width), int(0.5 * self.screen_height)), win_msg,
                                 winner.color)
             if not self.run_until_last_player_dies:
@@ -264,7 +290,7 @@ class AchtungDieKurveGame:
     def get_game_state(self):
         game_state = {}
         for p in self.players:
-            game_state[p.idx] = {'alive': p in self.active_players, 'trail': p.trail}
+            game_state[p.idx] = {'alive': p in self.active_players, 'trail': np.asarray(p.trail)}
 
         return game_state
 
@@ -288,7 +314,7 @@ class AchtungDieKurveGame:
         for ap in self.active_players:
             ap.draw_debug_info(self.screen)
 
-    def tick_forward(self, draw=True):
+    def tick_forward(self):
         """
         Advance game state by one tick
         """
@@ -299,11 +325,18 @@ class AchtungDieKurveGame:
         pressed_keys = pygame.key.get_pressed()
 
         # Query AI-players for steering input
+        game_state = self.get_game_state()
         for ap in self.active_players:
             if isinstance(ap, AIPlayer):
-                ap.apply_steering(ap.get_keypresses(game_state=None))
+                steering = ap.get_keypresses(game_state=game_state)
+                ap.apply_steering(steering)
 
-        self.move_players(pressed_keys, draw=draw)
+        if self.mode == "gui":
+            self.move_players(pressed_keys, draw=True, draw_debug=False)
+        elif self.mode == "gui-debug":
+            self.move_players(pressed_keys, draw=True, draw_debug=True)
+        else:
+            self.move_players(pressed_keys, draw=False, draw_debug=False)
 
 
     def reverse_tick(self):
@@ -375,7 +408,8 @@ class AchtungDieKurveGame:
                 logging.info("Game was stopped by user")
                 return
 
-
+    def print_scoreboard(self):
+        print(self.scoreboard)
 
 
 if __name__ == "__main__":
