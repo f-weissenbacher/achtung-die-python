@@ -6,19 +6,21 @@ import random
 # Updated to conform to flake8 and black standards
 import sys
 
+import pandas as pd
 import pygame
 import pygame.freetype  # Import the freetype module.
 
 import numpy as np
 from math import pi,sqrt, asin
 
-from players.player_base import Player
+from players.player_base import Player, ReasonOfDeath
 from players.human_player import HumanPlayer
 from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
 
 # Define the enemy object by extending pygame.sprite.Sprite
 
 import colorama
+
 
 class AchtungDieKurveGame:
     """
@@ -55,15 +57,18 @@ class AchtungDieKurveGame:
                      }
 
     def __init__(self, target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
-                 ignore_self_collisions=False, mode="gui"):
+                 mode="gui", wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
+                 survival_reward=100., ignore_self_collisions=False):
         """
 
         Args:
-            target_fps:
-            game_speed_factor:
-            run_until_last_player_dies:
-            ignore_self_collisions:
-            mode:
+            target_fps (float):
+            game_speed_factor (float):
+            run_until_last_player_dies (bool):
+            mode (str):
+            wall_collision_penalty: float
+            self_collision_penalty (float):
+            ignore_self_collisions (bool):
         """
         if mode in ["gui", "gui-debug", "headless"]:
             self.mode = mode
@@ -90,7 +95,12 @@ class AchtungDieKurveGame:
 
         self.players = []
         self.active_players = []
+        # Scoring
         self.scoreboard = {idx:0 for idx in AchtungDieKurveGame.player_keys}
+        self.wall_collision_penalty = wall_collision_penalty   # subtracted from rewards in case of wall collision
+        self.self_collision_penalty = self_collision_penalty   # subtracted from rewards in case of self collision
+        self.player_collision_penalty = player_collision_penalty  # subtracted from rewards in case of collision with opponent
+        self.survival_reward = survival_reward  # reward for surviving longer than an opponent (awarded when opponent dies)
 
         # Initialize pygame
         pygame.init()
@@ -194,12 +204,21 @@ class AchtungDieKurveGame:
         return p
 
 
-    def disable_player(self, p):
-        """ Remove player from list of active players but keep its history"""
+    def disable_player(self, p, reason:ReasonOfDeath):
+        """ Remove player `p` from list of active players but keep its history. Subtracts penalty from that player's
+        rewards based on the `reason` of its death, then awards all surviving players a survival bonus"""
+        if reason == ReasonOfDeath.SelfCollision:
+            p.total_reward -= self.self_collision_penalty
+        elif reason == ReasonOfDeath.WallCollision:
+            p.total_reward -= self.wall_collision_penalty
+        elif reason == ReasonOfDeath.OpponentCollision:
+            p.total_reward -= self.player_collision_penalty
+
         self.active_players.remove(p)
         # Increment scores of all remaining players
         for op in self.active_players:
             self.scoreboard[op.idx] += 1
+            op.total_reward += self.survival_reward
 
         #self.update_scoreboard() # TODO: Create scoreboard display
 
@@ -250,12 +269,12 @@ class AchtungDieKurveGame:
             # Detect wall collisions
             if self.detect_wall_collision(p):
                 logging.info(f"{p} hit the walls")
-                self.disable_player(p)
+                self.disable_player(p, ReasonOfDeath.WallCollision)
 
             # Check self-collision
             elif p.check_self_collision() and not self.ignore_self_collisions:
                 logging.info(f"{p} collided with itself")
-                self.disable_player(p)
+                self.disable_player(p, ReasonOfDeath.SelfCollision)
 
             else:
                 # Check for collision with other players
@@ -264,7 +283,7 @@ class AchtungDieKurveGame:
                         continue
                     elif p.check_player_collision(p2):
                         logging.info(f"{p} collided with {p2}")
-                        self.disable_player(p)
+                        self.disable_player(p, ReasonOfDeath.OpponentCollision)
                         break
 
 
@@ -414,8 +433,24 @@ class AchtungDieKurveGame:
                 logging.info("Game window was closed by user")
                 self.quit()
 
-    def print_scoreboard(self):
-        print(self.scoreboard)
+    def print_scoreboard(self, pretty=True):
+        if pretty:
+            sb_dict = {}
+            for p in self.players:
+                sb_dict[p.idx] = {'Name': str(p), 'Score': self.scoreboard[p.idx], 'Distance travelled': p.dist_travelled,
+                                  'Total Reward': p.total_reward}
+
+            scoreboard = pd.DataFrame.from_dict(sb_dict, orient='index')
+            scoreboard.sort_values(by='Score', inplace=True, ascending=False)
+            scoreboard = scoreboard.reset_index(drop=True)
+            scoreboard.index += 1
+            scoreboard_txt = str(scoreboard)
+
+            print("---- Scoreboard " + "-"*30)
+            print(scoreboard_txt)
+        else:
+            print("---- Scoreboard " + "-" * 30)
+            print(self.scoreboard)
 
     def quit(self, force=False):
         if self.running:

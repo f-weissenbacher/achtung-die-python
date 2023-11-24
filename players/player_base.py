@@ -10,6 +10,11 @@ class EvasionTurnState(IntEnum):
     ActionRequired = 1
     Possible = 2
 
+class ReasonOfDeath(IntEnum):
+    WallCollision = 0
+    SelfCollision = 1
+    OpponentCollision = 2
+
 
 # Import the pygame module
 import logging
@@ -65,6 +70,7 @@ class Player(pygame.sprite.Sprite):
         self.dist_per_tick = dist_per_tick
         self.dphi_per_tick = dphi_per_tick
         self.dist_travelled = 0.0  # total distance travelled
+        self.total_reward = 0.0 # sum of all rewards, collected by staying alive; collisions add penalties
         self.angle = init_angle  # angle of velocity vector
         self.steer_left_key = steer_left_key
         self.steer_right_key = steer_right_key
@@ -135,6 +141,7 @@ class Player(pygame.sprite.Sprite):
         dpos = self.vel_vec  # change in position
         self.pos += dpos
         self.dist_travelled += self.dist_per_tick
+        self.total_reward += self.dist_per_tick
         self.dist_to_next_hole -= self.dist_per_tick
         # self.rect.move_ip(dx, dy) # update sprite
         logger.debug(f"moving {self} by {dpos} to {self.pos}")
@@ -152,6 +159,7 @@ class Player(pygame.sprite.Sprite):
         self.pos -= self.vel_vec
         self.trail.pop(-1)
         self.dist_travelled -= self.dist_per_tick
+        self.total_reward -= self.dist_per_tick
         self.dist_to_next_hole -= self.dist_per_tick
 
 
