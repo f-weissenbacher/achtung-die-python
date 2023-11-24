@@ -4,6 +4,8 @@ import random
 
 # Import pygame.locals for easier access to key coordinates
 # Updated to conform to flake8 and black standards
+import sys
+
 import pygame
 import pygame.freetype  # Import the freetype module.
 
@@ -231,8 +233,6 @@ class AchtungDieKurveGame:
 
     def move_players(self, pressed_keys, draw=True, draw_debug=False):
         """ Advance players by one tick/frame"""
-        running = True
-
         # Refill screen to remove old player/enemy positions
         # screen.fill((0,0,0))
 
@@ -266,20 +266,6 @@ class AchtungDieKurveGame:
                         logging.info(f"{p} collided with {p2}")
                         self.disable_player(p)
                         break
-
-        if len(self.active_players) == 1:
-            winner = self.active_players[0]
-            win_msg = f"{winner} won!"
-            #logging.info(win_msg)
-            if draw and not draw_debug:
-                self.font.render_to(self.screen, (int(0.25 * self.screen_width), int(0.5 * self.screen_height)), win_msg,
-                                winner.color)
-            if not self.run_until_last_player_dies:
-                running = False
-        elif len(self.active_players) == 0:
-            running = False
-
-        self.running = running
 
 
     def draw_game_state(self):
@@ -338,6 +324,19 @@ class AchtungDieKurveGame:
         else:
             self.move_players(pressed_keys, draw=False, draw_debug=False)
 
+        if len(self.active_players) == 1:
+            winner = self.active_players[0]
+            if not self.run_until_last_player_dies:
+                win_msg = f"{winner} won!"
+                logging.info(win_msg)
+                if self.mode == "gui":
+                    self.font.render_to(self.screen, (int(0.25 * self.screen_width), int(0.5 * self.screen_height)), win_msg,
+                                    winner.color)
+                self.running = False
+
+        elif len(self.active_players) == 0:
+            self.running = False
+
 
     def reverse_tick(self):
         "Step back game by 1 tick"
@@ -345,13 +344,14 @@ class AchtungDieKurveGame:
         for p in self.players:
             p.undo_last_move()
 
-    def run_game_loop(self):
+    def run_game_loop(self, close_when_finished=True):
         self.draw_start_positions()
         # Show Start positions for a short time before starting
         pygame.time.wait(500)
 
         # Variable to keep the main loop running
         self.running = True
+        closed_by_user = False
         # Main loop
         while self.running:
             # Look at every event in the queue
@@ -360,15 +360,16 @@ class AchtungDieKurveGame:
                 if event.type == pygame.KEYDOWN:
                     # Was it the Escape key? If so, stop the loop.
                     if event.key == pygame.K_ESCAPE:
-                        self.running = False
+                        closed_by_user = True
 
                 # Did the user click the window close button? If so, stop the loop.
                 elif event.type == pygame.QUIT:
-                    self.running = False
+                    closed_by_user = True
 
-            if self.running is False:
+            if closed_by_user:
                 logging.info("Game was stopped by user")
-                return
+                self.running = False
+                self.quit()
 
             self.draw_wall_zones()
             self.tick_forward()
@@ -379,7 +380,11 @@ class AchtungDieKurveGame:
             # Ensure program maintains a rate of 30 frames per second
             self.clock.tick(self.target_fps)
 
-        pygame.time.wait(1200)
+        if close_when_finished:
+            pygame.time.wait(1200)
+            self.quit()
+        else:
+            self.wait_for_window_close()
 
 
     def flush_display(self, wall_zones=True):
@@ -391,25 +396,42 @@ class AchtungDieKurveGame:
 
     def wait_for_window_close(self):
         # Main loop
-        while self.running:
+        wait_for_close = True
+        while wait_for_close:
             # Look at every event in the queue
             for event in pygame.event.get():
                 # Did the user hit a key?
                 if event.type == pygame.KEYDOWN:
                     # Was it the Escape key? If so, stop the loop.
                     if event.key == pygame.K_ESCAPE:
-                        self.running = False
+                        wait_for_close = False
 
                 # Did the user click the window close button? If so, stop the loop.
                 elif event.type == pygame.QUIT:
-                    self.running = False
+                    wait_for_close = False
 
-            if self.running is False:
-                logging.info("Game was stopped by user")
-                return
+            if wait_for_close is False:
+                logging.info("Game window was closed by user")
+                self.quit()
 
     def print_scoreboard(self):
         print(self.scoreboard)
+
+    def quit(self, force=False):
+        if self.running:
+            if force:
+                logging.warning("Forced 'quit()' was called on game that is still running")
+            else:
+                logging.warning("Ignoring attempt to quit() called on game that is still running. If you really want to quit"
+                                "the game while running=True, use `game.quit(force=True)`.")
+                return
+        else:
+            logging.info("Closing game")
+
+        # Unwind pygame engine
+        pygame.display.quit()
+        pygame.quit()
+
 
 
 if __name__ == "__main__":
