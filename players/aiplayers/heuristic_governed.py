@@ -14,19 +14,20 @@ num_update_ticks = 0
 
 
 class NStepPlanPlayer(AIPlayer):
-    def __init__(self, num_steps=3, dist_per_step=20.0, wall_penalty=100., trail_penalty=111., conflict_penalty=50,
+    def __init__(self, num_steps=2, dist_per_step=40.0, wall_penalty=100., trail_penalty=111., conflict_penalty=50,
                  discount_factor=0.9, plan_update_period=None, ticks_per_step=None, **aiplayer_kwargs):
         """
 
         Args:
-            num_steps:
-            dist_per_step:
+            num_steps (int): Number of steps (of length dist_per_step) the agent plans into the future
+            dist_per_step (float):
             wall_penalty:
             trail_penalty:
             conflict_penalty:
             discount_factor:
-            plan_update_period:
-            ticks_per_step:
+            plan_update_period: number of ticks between plan updates. If `plan_update_period` is a float, the number of ticks
+                                is calculated as int(plan_update_period * ticks_per_step)
+            ticks_per_step (int):
             **aiplayer_kwargs:
         """
         self.N = num_steps
@@ -42,8 +43,10 @@ class NStepPlanPlayer(AIPlayer):
 
         if plan_update_period is None:
             plan_update_period = self.N * self.ticks_per_step
-        else:
-            assert plan_update_period <= self.N * self.ticks_per_step
+        elif isinstance(plan_update_period, float):
+            plan_update_period = int(plan_update_period * self.ticks_per_step)
+        assert plan_update_period <= self.N * self.ticks_per_step
+
         self.plan_update_period = plan_update_period  # Number of ticks between plan updates
         self.ticks_until_next_update = 2
         self.in_planning_tick = False
@@ -52,7 +55,7 @@ class NStepPlanPlayer(AIPlayer):
         self.wall_penalty = wall_penalty
         self.trail_penalty = trail_penalty
         self.conflict_penalty = conflict_penalty
-        self.discount_factor = discount_factor
+        self.discount_per_tick = discount_factor
 
         self.best_trails = []
         self.collidable_trails = shapely.MultiPolygon()
