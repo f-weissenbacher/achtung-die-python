@@ -5,6 +5,7 @@ import random
 # Import pygame.locals for easier access to key coordinates
 # Updated to conform to flake8 and black standards
 import sys
+import time
 
 import pandas as pd
 import pygame
@@ -56,6 +57,8 @@ class AchtungDieKurveGame:
                      6: ("Blue", pygame.Color("turquoise1")),
                      }
 
+    bg_color = pygame.Color(30,30,30)
+
     def __init__(self, target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
                  mode="gui", wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
                  survival_reward=100., ignore_self_collisions=False):
@@ -73,6 +76,7 @@ class AchtungDieKurveGame:
         if mode in ["gui", "gui-debug", "headless"]:
             self.mode = mode
         self.running = False
+        self.paused = False
         self.screen_width = 800
         self.screen_height = 600
         self.min_turn_radius = 0.05 * self.screen_width # minimum turn radius in pixels
@@ -95,6 +99,7 @@ class AchtungDieKurveGame:
 
         self.players = []
         self.active_players = []
+        self.winner = None
         # Scoring
         self.scoreboard = {idx:0 for idx in AchtungDieKurveGame.player_keys}
         self.wall_collision_penalty = wall_collision_penalty   # subtracted from rewards in case of wall collision
@@ -105,18 +110,22 @@ class AchtungDieKurveGame:
         # Initialize pygame
         pygame.init()
         # Fonts
-        self.font = pygame.freetype.SysFont(pygame.freetype.get_default_font(), 30)
+        self.font = pygame.freetype.SysFont(pygame.freetype.get_default_font(), size=28)
+        #self.font = pygame.font.SysFont("Arial", size=30)
 
         # Create the screen object
         # The size is determined by the constant SCREEN_WIDTH and SCREEN_HEIGHT
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        self.screen.fill(pygame.Color(30,30,30))
+        self.screen.fill(self.bg_color)
         # Setup game clock
         self.clock = pygame.time.Clock()
 
         # Debug flags
         self.run_until_last_player_dies = run_until_last_player_dies
         self.ignore_self_collisions = ignore_self_collisions
+
+        # Diagnostics
+        self.timing_stats = []
 
         colorama.init()
 
@@ -251,9 +260,14 @@ class AchtungDieKurveGame:
 
 
     def move_players(self, pressed_keys, draw=True, draw_debug=False):
-        """ Advance players by one tick/frame"""
+        """ Advance players by one tick/frame
+
+        Returns: timing information
+        """
         # Refill screen to remove old player/enemy positions
         # screen.fill((0,0,0))
+
+        timing = {'coll_checks':0., 'draw':0., 'draw_dbg':0.}
 
         for p in self.active_players:
             # Process player input
@@ -262,10 +276,15 @@ class AchtungDieKurveGame:
             p.move()
             # Draw player at its current position
             if draw:
+                t0 = time.time()
                 p.draw(self.screen)
+                timing['draw'] += time.time() - t0
             if draw_debug:
+                t0 = time.time()
                 p.draw_debug_info(self.screen)
+                timing['draw_dbg'] += time.time() - t0
 
+            t0 = time.time()
             # Detect wall collisions
             if self.detect_wall_collision(p):
                 logging.info(f"{p} hit the walls")
@@ -286,11 +305,17 @@ class AchtungDieKurveGame:
                         self.disable_player(p, ReasonOfDeath.OpponentCollision)
                         break
 
+            timing['coll_checks'] += time.time() - t0
+
+        return timing
+
 
     def get_game_state(self):
         game_state = {}
         for p in self.players:
-            game_state[p.idx] = {'alive': p in self.active_players, 'trail': np.asarray(p.trail)}
+            game_state[p.idx] = {'alive': p in self.active_players,
+                                 'trail': np.asarray(p.trail),
+                                 'angles': np.asarray(p.angle_history)}
 
         return game_state
 
@@ -323,6 +348,8 @@ class AchtungDieKurveGame:
     def tick_forward(self):
         """
         Advance game state by one tick
+
+        Return timing info
         """
         self.current_frame += 1
         logging.debug(f">==== Frame {self.current_frame:d} ===============")
@@ -331,31 +358,32 @@ class AchtungDieKurveGame:
         pressed_keys = pygame.key.get_pressed()
 
         # Query AI-players for steering input
+        t0_ai = time.time()
         game_state = self.get_game_state()
         for ap in self.active_players:
             if isinstance(ap, AIPlayer):
                 steering = ap.get_keypresses(game_state=game_state)
                 ap.apply_steering(steering)
+        dt_ai = time.time() - t0_ai
 
         if self.mode == "gui":
-            self.move_players(pressed_keys, draw=True, draw_debug=False)
+            timing = self.move_players(pressed_keys, draw=True, draw_debug=False)
         elif self.mode == "gui-debug":
-            self.move_players(pressed_keys, draw=True, draw_debug=True)
+            timing = self.move_players(pressed_keys, draw=True, draw_debug=True)
         else:
-            self.move_players(pressed_keys, draw=False, draw_debug=False)
+            timing = self.move_players(pressed_keys, draw=False, draw_debug=False)
+
+        timing['ai'] = dt_ai
 
         if len(self.active_players) == 1:
-            winner = self.active_players[0]
+            self.winner = self.active_players[0]
             if not self.run_until_last_player_dies:
-                win_msg = f"{winner} won!"
-                logging.info(win_msg)
-                if self.mode == "gui":
-                    self.font.render_to(self.screen, (int(0.25 * self.screen_width), int(0.5 * self.screen_height)), win_msg,
-                                    winner.color)
                 self.running = False
 
         elif len(self.active_players) == 0:
             self.running = False
+
+        return timing
 
 
     def reverse_tick(self):
@@ -363,6 +391,13 @@ class AchtungDieKurveGame:
 
         for p in self.players:
             p.undo_last_move()
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+        if self.paused:
+            logging.info("Game paused")
+        else:
+            logging.info("Game continued")
 
     def run_game_loop(self, close_when_finished=True):
         self.draw_start_positions()
@@ -374,6 +409,7 @@ class AchtungDieKurveGame:
         closed_by_user = False
         # Main loop
         while self.running:
+            timing = {}
             # Look at every event in the queue
             for event in pygame.event.get():
                 # Did the user hit a key?
@@ -381,24 +417,44 @@ class AchtungDieKurveGame:
                     # Was it the Escape key? If so, stop the loop.
                     if event.key == pygame.K_ESCAPE:
                         closed_by_user = True
+                    if event.key == pygame.K_SPACE:
+                        self.toggle_pause()
 
                 # Did the user click the window close button? If so, stop the loop.
                 elif event.type == pygame.QUIT:
                     closed_by_user = True
+
+            if self.paused:
+                time.sleep(1/self.target_fps)
+                continue
 
             if closed_by_user:
                 logging.info("Game was stopped by user")
                 self.running = False
                 self.quit()
 
-            self.draw_wall_zones()
-            self.tick_forward()
+            if "debug" in self.mode:
+                t0 = time.time()
+                self.draw_wall_zones()
+                timing['draw_dbg'] = time.time() - t0
+
+            tf_timing = self.tick_forward()
+            timing.update(tf_timing)
 
             # Render the display (flip everything to the display)
-            pygame.display.flip()
+            t0 = time.time()
+            if "gui" in self.mode:
+                pygame.display.flip()
+            timing['draw'] += time.time() - t0
+
+            self.timing_stats.append(timing)
 
             # Ensure program maintains a rate of 30 frames per second
             self.clock.tick(self.target_fps)
+
+        # game has finished
+        if self.mode == "gui" and self.winner is not None:
+            self.show_win_message()
 
         if close_when_finished:
             pygame.time.wait(1200)
@@ -406,6 +462,14 @@ class AchtungDieKurveGame:
         else:
             self.wait_for_window_close()
 
+
+    def show_win_message(self):
+        win_msg = f"{self.winner} won!"
+        logging.info(win_msg)
+        self.font.render_to(self.screen, (int(0.25 * self.screen_width), int(0.5 * self.screen_height)),
+                            text=win_msg, fgcolor=self.winner.color, bgcolor=self.bg_color)
+        pygame.display.flip()
+        #self.running = False
 
     def flush_display(self, wall_zones=True):
         if wall_zones:
@@ -446,12 +510,23 @@ class AchtungDieKurveGame:
             scoreboard = scoreboard.reset_index(drop=True)
             scoreboard.index += 1
             scoreboard_txt = str(scoreboard)
-
-            print("---- Scoreboard " + "-"*30)
+            line_width = scoreboard_txt.index('\n')
+            #print(line_width)
+            print("---- Scoreboard " + "-" * max([0,line_width-16]))
             print(scoreboard_txt)
         else:
-            print("---- Scoreboard " + "-" * 30)
             print(self.scoreboard)
+
+    def print_timing_stats(self):
+        timing_history = pd.DataFrame.from_records(self.timing_stats)
+        timing_history['total'] = timing_history.sum(axis=1)
+        average_times = timing_history.mean(axis=0) * 1000.
+        average_times.sort_values(ascending=False, inplace=True)
+        print("---- Computation Time [ms] per Frame (avg)")
+        print(average_times)
+        #print(timing_history)
+
+
 
     def quit(self, force=False):
         if self.running:
@@ -459,7 +534,7 @@ class AchtungDieKurveGame:
                 logging.warning("Forced 'quit()' was called on game that is still running")
             else:
                 logging.warning("Ignoring attempt to quit() called on game that is still running. If you really want to quit"
-                                "the game while running=True, use `game.quit(force=True)`.")
+                                "the game while running==True, use `game.quit(force=True)`.")
                 return
         else:
             logging.info("Closing game")
