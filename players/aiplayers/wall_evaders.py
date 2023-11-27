@@ -175,17 +175,17 @@ class WallAvoidingAIPlayer(AIPlayer):
 
 
 class RandomSteeringAIPlayer(WallAvoidingAIPlayer):
-    def __init__(self, turn_angles=(0.2 * pi, 1.0 * pi), straight_lengths=(0, 200.0), **aiplayer_kwargs):
-        super().__init__(**aiplayer_kwargs)
+    def __init__(self, min_turn_radius, turn_angles_deg=(40., 180.), straight_lengths=(0, 200.0), **aiplayer_kwargs):
+        super().__init__(min_turn_radius=min_turn_radius, **aiplayer_kwargs)
 
-        self.turn_angles = turn_angles  # minimum/maximum angle of a turn (in radians)
+        self.turn_angles = np.deg2rad(turn_angles_deg)  # minimum/maximum angle of a turn (in radians)
         self.straight_lengths = straight_lengths  # minimum/maximum distance travelled in straight line (in game units)
 
         self.current_state = None
         self.ticks_till_next_state = 0
 
     def __str__(self):
-        return f"RandomSteeringAIPlayer {self.idx}"
+        return f"RandomSteeringAIPlayer '{self.name}' ({self.color_name})"
 
 
     def _roll_new_state(self):

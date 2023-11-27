@@ -12,6 +12,34 @@ import shapely
 
 num_update_ticks = 0
 
+def find_nearest_intersection(path1:shapely.LineString, path2:shapely.LineString, calc_dist_along_path2=False):
+    intersect = path1.intersection(path2)
+    dtc1 = np.nan
+    dtc2 = np.nan
+    if isinstance(intersect, shapely.Point):
+        # dtc == 'distance to conflict'
+        dtc1 = path1.line_locate_point(intersect)
+        if calc_dist_along_path2:
+            dtc2 = path2.line_locate_point(intersect)
+    elif isinstance(intersect, shapely.MultiPoint):
+        closest_coll_pt = None
+        for pt in intersect.geoms:
+            dist2pt1= path1.line_locate_point(pt)
+            if dist2pt1 < dtc1:
+                dtc1 = dist2pt1
+                closest_coll_pt = pt
+
+        intersect = closest_coll_pt
+        if calc_dist_along_path2:
+            dtc2 = path2.line_locate_point(closest_coll_pt)
+    else:
+        intersect = None
+
+    if calc_dist_along_path2:
+        return intersect, dtc1, dtc2
+    else:
+        return intersect, dtc1
+
 
 class NStepPlanPlayer(AIPlayer):
     def __init__(self, num_steps=2, dist_per_step=40.0, wall_penalty=100., trail_penalty=111., conflict_penalty=50,
@@ -46,6 +74,7 @@ class NStepPlanPlayer(AIPlayer):
         elif isinstance(plan_update_period, float):
             plan_update_period = int(plan_update_period * self.ticks_per_step)
         assert plan_update_period <= self.N * self.ticks_per_step
+        assert plan_update_period > 0
 
         self.plan_update_period = plan_update_period  # Number of ticks between plan updates
         self.ticks_until_next_update = 2
@@ -55,7 +84,8 @@ class NStepPlanPlayer(AIPlayer):
         self.wall_penalty = wall_penalty
         self.trail_penalty = trail_penalty
         self.conflict_penalty = conflict_penalty
-        self.discount_per_tick = discount_factor
+        self.discount_per_tick = discount_factor ** (1/self.plan_update_period)
+        self._gamma_vec = np.cumprod(self.discount_per_tick * np.ones((self.N * self.ticks_per_step)))
 
         self.best_trails = []
         self.collidable_trails = shapely.MultiPolygon()
@@ -139,6 +169,8 @@ class NStepPlanPlayer(AIPlayer):
         else:
             collidable_trails = shapely.geometry.MultiPolygon()
 
+
+
         for action_set in itertools.combinations_with_replacement([PlayerAction.KeepStraight, PlayerAction.SteerLeft, PlayerAction.SteerRight], self.N):
             for plan in set(itertools.permutations(action_set)):
                 # for plan in itertools.permutations(action_set):
@@ -149,7 +181,7 @@ class NStepPlanPlayer(AIPlayer):
                 plan_score = 0
                 # Design of heuristic: Only penalties (negative rewards). As soon as score of current plan
                 # drops below score of best plan, we can go to the next one!
-                for a in plan:
+                for step_n, a in enumerate(plan):
                     # print(plan)
                     # if a == PlayerAction.SteerLeft:
                     #     steering = {p.steer_left_key: True, p.steer_right_key: False}
@@ -158,12 +190,12 @@ class NStepPlanPlayer(AIPlayer):
                     # else:
                     #     steering = {p.steer_left_key: False, p.steer_right_key: False}
 
-                    for k in range(self.ticks_per_step):
+                    for t in range(step_n*self.ticks_per_step, (step_n+1)*self.ticks_per_step):
                         p.apply_action(a)
                         p.move()
 
                         if not self._pos_inside_bounds(p.pos, border_width=self.radius):
-                            plan_score -= self.wall_penalty
+                            plan_score -= self.wall_penalty * self._gamma_vec[t]
 
                         if plan_score < best_plan_score:
                             break
@@ -177,8 +209,14 @@ class NStepPlanPlayer(AIPlayer):
 
                 # Check for collisions with existing trails
                 predicted_trail = shapely.LineString(np.array(p.trail))
-                if not collidable_trails.is_empty and predicted_trail.intersects(collidable_trails):
-                    plan_score -= self.trail_penalty
+                if not collidable_trails.is_empty:
+                    for trail in collidable_trails.geoms:
+                        intersect, dtc = find_nearest_intersection(predicted_trail, trail)
+                        if intersect is not None:
+                            # ttc == 'ticks till conflict'
+                            ttc = int(dtc / self.dist_per_tick)
+                            plan_score -= self.trail_penalty * self._gamma_vec[ttc]
+                            # TODO: What if predicted trail hits multiple trails?
 
                 if plan_score > best_plan_score:
                     best_plans = [plan]

@@ -1,17 +1,17 @@
 import logging
+import log
 import random
 
 import numpy as np
 
 from game import AchtungDieKurveGame
-from players import WallAvoidingAIPlayer
+from players.aiplayers import WallAvoidingAIPlayer
 
 import pygame
 
-logging.basicConfig(level=logging.DEBUG,
-                    format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")
+log.setup_colored_logs(logging.DEBUG, do_basic_setup=True)
 
-game = AchtungDieKurveGame(target_fps=5, game_speed_factor=1.0, run_until_last_player_dies=True)
+game = AchtungDieKurveGame(target_fps=5, game_speed_factor=1.0, run_until_last_player_dies=True, mode="gui")
 
 print(f"Minimal turning radius: {game.min_turn_radius}")
 
@@ -32,7 +32,7 @@ center_rect = pygame.rect.Rect(2*R_min, 2*R_min, game.screen_width - 4*R_min, ga
 if center_rect.collidepoint(*p1.pos):
     while center_rect.collidepoint(*p1.pos):
         game.draw_debug_info()
-        game.tick_forward(draw=True)
+        game.tick_forward()
 else:
     logging.info(f"{p1} not spawned in center rect!")
 
@@ -45,7 +45,7 @@ while game.running and tick <= max_ticks:
     game.draw_wall_zones()
     game.draw_debug_info()
     game.flush_display()
-    game.tick_forward(draw=True)
+    game.tick_forward()
     #p1.draw_turn_circles(game.screen, p1.turn_radius)
     game.flush_display()
     tick += 1

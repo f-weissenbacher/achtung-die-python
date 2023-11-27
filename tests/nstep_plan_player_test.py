@@ -1,4 +1,5 @@
 import logging
+import log
 #import random
 import time
 
@@ -14,9 +15,10 @@ np.random.seed(seed)
 from game import AchtungDieKurveGame
 from players.aiplayers import NStepPlanPlayer, WallAvoidingAIPlayer
 
+log_level = logging.INFO
+log_format = "%(relativeCreated)d %(levelname)s [%(module)s.%(funcName)s:%(lineno)d] - %(message)s"
 
-logging.basicConfig(level=logging.DEBUG,
-                    format="%(relativeCreated)d %(levelname)s [%(module)s.%(funcName)s:%(lineno)d] - %(message)s")
+log.setup_colored_logs(level=log_level, fmt=log_format, do_basic_setup=True)
 
 game = AchtungDieKurveGame(target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=True,
                            ignore_self_collisions=False, mode="gui-debug")

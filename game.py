@@ -59,9 +59,9 @@ class AchtungDieKurveGame:
 
     bg_color = pygame.Color(30,30,30)
 
-    def __init__(self, target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
-                 mode="gui", wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
-                 survival_reward=100., ignore_self_collisions=False):
+    def __init__(self, mode="gui", target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
+                 wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
+                 survival_reward=100., ignore_self_collisions=False, rng_seed=None):
         """
 
         Args:
@@ -72,9 +72,15 @@ class AchtungDieKurveGame:
             wall_collision_penalty: float
             self_collision_penalty (float):
             ignore_self_collisions (bool):
+            startpos_seed (int):
         """
+        if rng_seed is not None:
+            np.random.seed(rng_seed)
+        self._rng_seed = rng_seed
+
         if mode in ["gui", "gui-debug", "headless"]:
             self.mode = mode
+
         self.running = False
         self.paused = False
         self.screen_width = 800
@@ -196,10 +202,15 @@ class AchtungDieKurveGame:
             aiplayer_kwargs = player_kwargs
             aiplayer_kwargs.update(kwargs)
             aiplayer_kwargs['game_bounds'] = self.game_bounds
-            if player_type == WallAvoidingAIPlayer:
-                p = WallAvoidingAIPlayer(**aiplayer_kwargs)
-            elif player_type == RandomSteeringAIPlayer:
-                p = RandomSteeringAIPlayer(**aiplayer_kwargs)
+            if issubclass(player_type, WallAvoidingAIPlayer):
+                if 'min_turn_radius' not in aiplayer_kwargs or aiplayer_kwargs['min_turn_radius'] == 'auto':
+                    aiplayer_kwargs['min_turn_radius'] = self.min_turn_radius
+                if player_type == WallAvoidingAIPlayer:
+                    p = WallAvoidingAIPlayer(**aiplayer_kwargs)
+                elif player_type == RandomSteeringAIPlayer:
+                    p = RandomSteeringAIPlayer(**aiplayer_kwargs)
+                else:
+                    raise NotImplementedError
             elif player_type == NStepPlanPlayer:
                 p = NStepPlanPlayer(**aiplayer_kwargs)
             else:
@@ -511,8 +522,9 @@ class AchtungDieKurveGame:
             scoreboard.index += 1
             scoreboard_txt = str(scoreboard)
             line_width = scoreboard_txt.index('\n')
+            scoreboard_txt = "\n".join(scoreboard_txt.splitlines()[:-2])
             #print(line_width)
-            print("---- Scoreboard " + "-" * max([0,line_width-16]))
+            print("---- Scoreboard " + "-" * max([0, line_width-16]))
             print(scoreboard_txt)
         else:
             print(self.scoreboard)
@@ -523,7 +535,7 @@ class AchtungDieKurveGame:
         average_times = timing_history.mean(axis=0) * 1000.
         average_times.sort_values(ascending=False, inplace=True)
         print("---- Computation Time [ms] per Frame (avg)")
-        print(average_times)
+        print("\n".join(str(average_times).splitlines()[:-1]))
         #print(timing_history)
 
 
@@ -533,7 +545,7 @@ class AchtungDieKurveGame:
             if force:
                 logging.warning("Forced 'quit()' was called on game that is still running")
             else:
-                logging.warning("Ignoring attempt to quit() called on game that is still running. If you really want to quit"
+                logging.warning("Ignoring attempt to quit() called on game that is still running. If you really want to quit "
                                 "the game while running==True, use `game.quit(force=True)`.")
                 return
         else:
