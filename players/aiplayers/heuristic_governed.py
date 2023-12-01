@@ -2,6 +2,7 @@ import copy
 import itertools
 import logging
 
+import matplotlib.pyplot as plt
 import pygame
 import numpy as np
 from players.player_base import PlayerAction, Player
@@ -43,7 +44,7 @@ def find_nearest_intersection(path1:shapely.LineString, path2:shapely.LineString
 
 class NStepPlanPlayer(AIPlayer):
     def __init__(self, num_steps=2, dist_per_step=40.0, wall_penalty=100., trail_penalty=111., conflict_penalty=50,
-                 discount_factor=0.9, plan_update_period=None, ticks_per_step=None, **aiplayer_kwargs):
+                 discount_factor=0.95, plan_update_period=None, ticks_per_step=None, **aiplayer_kwargs):
         """
 
         Args:
@@ -85,7 +86,7 @@ class NStepPlanPlayer(AIPlayer):
         self.trail_penalty = trail_penalty
         self.conflict_penalty = conflict_penalty
         self.discount_per_tick = discount_factor ** (1/self.plan_update_period)
-        self._gamma_vec = np.cumprod(self.discount_per_tick * np.ones((self.N * self.ticks_per_step)))
+        self._gamma_vec = np.cumprod([1] + [self.discount_per_tick]*(self.N * self.ticks_per_step))
 
         self.best_trails = []
         self.collidable_trails = shapely.MultiPolygon()
@@ -170,37 +171,38 @@ class NStepPlanPlayer(AIPlayer):
             collidable_trails = shapely.geometry.MultiPolygon()
 
 
-
         for action_set in itertools.combinations_with_replacement([PlayerAction.KeepStraight, PlayerAction.SteerLeft, PlayerAction.SteerRight], self.N):
             for plan in set(itertools.permutations(action_set)):
                 # for plan in itertools.permutations(action_set):
-                #p = Player(0, "dummy", init_pos=self.pos, init_angle=self.angle, dist_per_tick=self.dist_per_tick*self.ticks_per_step,
+                #dp = Player(0, "dummy", init_pos=self.pos, init_angle=self.angle, dist_per_tick=self.dist_per_tick*self.ticks_per_step,
                 #           startblock_length=np.inf, dphi_per_tick=self.dphi_per_tick*self.ticks_per_step)
-                p = DummyPlayer(init_pos=self.pos, init_angle=self.angle, dist_per_tick=self.dist_per_tick,
-                           startblock_length=np.inf, dphi_per_tick=self.dphi_per_tick)
+                dp = DummyPlayer(init_pos=self.pos, init_angle=self.angle, dist_per_tick=self.dist_per_tick,
+                                 startblock_length=np.inf, dphi_per_tick=self.dphi_per_tick)
                 plan_score = 0
                 # Design of heuristic: Only penalties (negative rewards). As soon as score of current plan
                 # drops below score of best plan, we can go to the next one!
                 for step_n, a in enumerate(plan):
                     # print(plan)
                     # if a == PlayerAction.SteerLeft:
-                    #     steering = {p.steer_left_key: True, p.steer_right_key: False}
+                    #     steering = {dp.steer_left_key: True, dp.steer_right_key: False}
                     # elif a == PlayerAction.SteerRight:
-                    #     steering = {p.steer_left_key: False, p.steer_right_key: True}
+                    #     steering = {dp.steer_left_key: False, dp.steer_right_key: True}
                     # else:
-                    #     steering = {p.steer_left_key: False, p.steer_right_key: False}
+                    #     steering = {dp.steer_left_key: False, dp.steer_right_key: False}
 
                     for t in range(step_n*self.ticks_per_step, (step_n+1)*self.ticks_per_step):
-                        p.apply_action(a)
-                        p.move()
+                        dp.apply_action(a)
+                        dp.move()
 
-                        if not self._pos_inside_bounds(p.pos, border_width=self.radius):
+                        if not self._pos_inside_bounds(dp.pos, border_width=self.radius):
                             plan_score -= self.wall_penalty * self._gamma_vec[t]
 
                         if plan_score < best_plan_score:
+                            # stop moving dummy player
                             break
 
                     if plan_score < best_plan_score:
+                        # try next plan
                         break
 
                 if plan_score < best_plan_score:
@@ -208,7 +210,7 @@ class NStepPlanPlayer(AIPlayer):
                     continue
 
                 # Check for collisions with existing trails
-                predicted_trail = shapely.LineString(np.array(p.trail))
+                predicted_trail = shapely.LineString(np.array(dp.trail))
                 if not collidable_trails.is_empty:
                     for trail in collidable_trails.geoms:
                         intersect, dtc = find_nearest_intersection(predicted_trail, trail)
@@ -246,23 +248,26 @@ class NStepPlanPlayer(AIPlayer):
 
     def draw_debug_info(self, surface:pygame.Surface):
         if self.in_planning_tick:
+            cmap = plt.get_cmap("Blues")
+            norm = plt.Normalize(vmin=-5000, vmax=0)
             self.num_updates += 1
             dbg_color = pygame.Color('dodgerblue')
             dbg_color.a = 150
-            pygame.draw.circle(surface=surface, center=self.trail[-2], radius=self.radius+2, color=dbg_color,
-                               width=2)
+            pygame.draw.circle(surface=surface, center=self.trail[-2], radius=self.radius+2, color=dbg_color, width=2)
 
             trails_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
 
             coll_color = copy.copy(self.color)
             coll_color.a = 60
 
-            for coll_trail in self.collidable_trails.geoms:
-                pygame.draw.polygon(trails_surf, color=coll_color, points=coll_trail.exterior.coords, width=0)
+            #for coll_trail in self.collidable_trails.geoms:
+            #    pygame.draw.polygon(trails_surf, color=coll_color, points=coll_trail.exterior.coords, width=0)
 
             for trail in self.best_trails:
                 #pygame.draw.lines(surface, color=dbg_color, points=trail.coords, closed=False, width=2*self.radius )
-                pygame.draw.aalines(surface, color=dbg_color, points=trail.coords, closed=False)
+                trail_color = pygame.Color(np.asarray(cmap(norm(self.best_plan_score))) * 255)
+                print(self.best_plan_score)
+                pygame.draw.aalines(surface, color=trail_color, points=trail.coords, closed=False)
                 #bold_trail = trail.buffer(self.radius).exterior
                 #pygame.draw.polygon(trails_surf, color=dbg_color, points=bold_trail.coords, width=0)
 
