@@ -166,7 +166,7 @@ class AchtungDieKurveGame:
         if not isinstance(color, pygame.Color):
             # The pygame.Color constructor accepts:
             # - a pygame.Color
-            # - the name of a color in pygame.colordict.THECOLORS
+            # - the name of a color in pygame.olordict.THECOLORS
             # - a RGB tuple
             color = pygame.Color(color)
 
