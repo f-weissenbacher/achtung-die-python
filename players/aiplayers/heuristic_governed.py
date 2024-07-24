@@ -67,7 +67,7 @@ class NStepPlanPlayer(AIPlayer):
         if ticks_per_step is not None:
             self.ticks_per_step = ticks_per_step
         else:
-        # How far the player travels before it updates its plan
+            # How far the player travels before it updates its plan
             self.ticks_per_step = int(dist_per_step / self.dist_per_tick)
 
         if plan_update_period is None:
@@ -178,28 +178,43 @@ class NStepPlanPlayer(AIPlayer):
                 #           startblock_length=np.inf, dphi_per_tick=self.dphi_per_tick*self.ticks_per_step)
                 dp = DummyPlayer(init_pos=self.pos, init_angle=self.angle, dist_per_tick=self.dist_per_tick,
                                  startblock_length=np.inf, dphi_per_tick=self.dphi_per_tick)
-                plan_score = 0
+                plan_score = 0.
                 # Design of heuristic: Only penalties (negative rewards). As soon as score of current plan
                 # drops below score of best plan, we can go to the next one!
                 for step_n, a in enumerate(plan):
                     # print(plan)
-                    # if a == PlayerAction.SteerLeft:
-                    #     steering = {dp.steer_left_key: True, dp.steer_right_key: False}
-                    # elif a == PlayerAction.SteerRight:
-                    #     steering = {dp.steer_left_key: False, dp.steer_right_key: True}
-                    # else:
-                    #     steering = {dp.steer_left_key: False, dp.steer_right_key: False}
+                    start_pos = self.pos
+                    start_velvec = self.vel_vec
+                    if a == PlayerAction.KeepStraight:
+                        planned_path = shapely.LineString([start_pos, start_pos + start_velvec * self.ticks_per_step])
+                    else:
+                        if a == PlayerAction.SteerLeft:
+                            turn_center = dp.turn_centers()['left']
+                            dphi_direction = 1
+                        else:
+                            turn_center = dp.turn_centers()['right']
+                            dphi_direction = -1
 
-                    for t in range(step_n*self.ticks_per_step, (step_n+1)*self.ticks_per_step):
-                        dp.apply_action(a)
-                        dp.move()
+                        start_radial = turn_center - start_pos
+                        phi_start = np.arctan2(start_radial[1], start_radial[0])
+                        phi_vec = phi_start + dphi_direction * np.arange(self.ticks_per_step) * self.dphi_per_tick
+                        arc_vertices = np.hstack([self.min_turn_radius * np.cos(phi_vec),
+                                                  self.min_turn_radius * np.sin(phi_vec)])
+                        arc_vertices += turn_center
+                        planned_path = shapely.LineString(arc_vertices)
 
-                        if not self._pos_inside_bounds(dp.pos, border_width=self.radius):
-                            plan_score -= self.wall_penalty * self._gamma_vec[t]
+                    # for t in range(step_n*self.ticks_per_step, (step_n+1)*self.ticks_per_step):
+                    #     dp.apply_action(a)
+                    #     dp.move()
+                    #
+                    #     if not self._pos_inside_bounds(dp.pos, border_width=self.radius):
+                    #         plan_score -= self.wall_penalty * self._gamma_vec[t]
+                    #
+                    #     if plan_score < best_plan_score:
+                    #         # stop moving dummy player
+                    #         break
 
-                        if plan_score < best_plan_score:
-                            # stop moving dummy player
-                            break
+                    #
 
                     if plan_score < best_plan_score:
                         # try next plan
@@ -210,7 +225,7 @@ class NStepPlanPlayer(AIPlayer):
                     continue
 
                 # Check for collisions with existing trails
-                predicted_trail = shapely.LineString(np.array(dp.trail))
+                predicted_trail = shapely.LineString(planned_path)
                 if not collidable_trails.is_empty:
                     for trail in collidable_trails.geoms:
                         intersect, dtc = find_nearest_intersection(predicted_trail, trail)

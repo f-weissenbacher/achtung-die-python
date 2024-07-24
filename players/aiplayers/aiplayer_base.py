@@ -52,35 +52,4 @@ class AIPlayer(Player):
 
         return self.pos + self.dist_per_tick * np.array([np.cos(new_angle), np.sin(new_angle)])
 
-    def turn_centers(self, turn_radius):
-        w = np.sqrt(turn_radius ** 2 - 0.25 * self.dist_per_tick ** 2)
-        # left_turn_state = PlayerTurnState.Possible
-        # right_turn_state = PlayerTurnState.Possible
 
-        # prior_pos = self.pos - 0.5 * self.dist_per_tick * vel_dir # distance travelled in prior tick
-
-        turn_centers = {}
-        for turn_dir in ["left", "right"]:
-            # Vector from halfpoint between current and previous position to center of turning circle
-            if turn_dir == "left":
-                w_vec = w * np.array([np.cos(self.angle - np.pi / 2), np.sin(self.angle - np.pi / 2)])
-            else:
-                w_vec = w * np.array([np.cos(self.angle + np.pi / 2), np.sin(self.angle + np.pi / 2)])
-
-            # Center of turn circle
-            turn_centers[turn_dir] = self.pos - 0.5 * self.vel_vec + w_vec
-
-        return turn_centers
-
-
-    # DEBUG Utilities ------------------------------
-    def draw_turn_circles(self, surface, turn_radius):
-        """ draw turn circles for player. left circle yellowish, right circle light blue
-        """
-        turn_centers = self.turn_centers(turn_radius)
-
-        # left turn circle
-        pygame.draw.circle(surface, pygame.Color("goldenrod"), turn_centers['left'], turn_radius, width=1)
-
-        # left turn circle
-        pygame.draw.circle(surface, pygame.Color("deepskyblue"), turn_centers['right'], turn_radius, width=1)

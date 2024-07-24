@@ -69,6 +69,8 @@ class Player(pygame.sprite.Sprite):
         self.pos = np.array(init_pos, dtype=float)  # x-position in game world (pixel coordinates)
         self.dist_per_tick = dist_per_tick
         self.dphi_per_tick = dphi_per_tick
+        self.min_turn_radius = self.dist_per_tick / (2 * sin(0.5*self.dphi_per_tick))
+        #self.dphi_per_tick = 2 * asin(self.dist_per_tick / (2 * self.min_turn_radius))
         self.dist_travelled = 0.0  # total distance travelled
         self.total_reward = 0.0 # sum of all rewards, collected by staying alive; collisions add penalties
         self.angle = init_angle  # angle of velocity vector
@@ -201,3 +203,43 @@ class Player(pygame.sprite.Sprite):
             return True
         else:
             return False
+
+    def turn_centers(self, turn_radius=None):
+        if turn_radius is None:
+            turn_radius = self.min_turn_radius
+
+        w = np.sqrt(turn_radius ** 2 - 0.25 * self.dist_per_tick ** 2)
+        # left_turn_state = PlayerTurnState.Possible
+        # right_turn_state = PlayerTurnState.Possible
+
+        # prior_pos = self.pos - 0.5 * self.dist_per_tick * vel_dir # distance travelled in prior tick
+
+        turn_centers = {}
+        for turn_dir in ["left", "right"]:
+            # Vector from halfpoint between current and previous position to center of turning circle
+            if turn_dir == "left":
+                w_vec = w * np.array([np.cos(self.angle - np.pi / 2), np.sin(self.angle - np.pi / 2)])
+            else:
+                w_vec = w * np.array([np.cos(self.angle + np.pi / 2), np.sin(self.angle + np.pi / 2)])
+
+            # Center of turn circle
+            turn_centers[turn_dir] = self.pos - 0.5 * self.vel_vec + w_vec
+
+        return turn_centers
+
+
+    # DEBUG Utilities ------------------------------
+    def draw_turn_circles(self, surface, turn_radius=None):
+        """ draw turn circles for player. left circle yellowish, right circle light blue
+        """
+        if turn_radius is None:
+            turn_radius = self.min_turn_radius
+
+        turn_centers = self.turn_centers(turn_radius)
+
+        # left turn circle
+        pygame.draw.circle(surface, pygame.Color("goldenrod"), turn_centers['left'], turn_radius, width=1)
+
+        # left turn circle
+        pygame.draw.circle(surface, pygame.Color("deepskyblue"), turn_centers['right'], turn_radius, width=1)
+
