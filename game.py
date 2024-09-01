@@ -16,6 +16,7 @@ from math import pi,sqrt, asin
 from players.player_base import Player, ReasonOfDeath
 from players.human_player import HumanPlayer
 from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
+from players.misc_players import ScriptedPlayer, FixedActionListPlayer
 
 # Define the enemy object by extending pygame.sprite.Sprite
 
@@ -183,6 +184,13 @@ class AchtungDieKurveGame:
             if 'name' not in kwargs:
                 kwargs['name'] = 'Unnamed'
             p = HumanPlayer(name=kwargs['name'], **player_kwargs)
+        elif issubclass(player_type, ScriptedPlayer):
+            scripted_player_kwargs = player_kwargs
+            scripted_player_kwargs.update(kwargs)
+            if player_type == FixedActionListPlayer:
+                p = FixedActionListPlayer(**scripted_player_kwargs)
+            else:
+                raise ValueError(f"Invalid scripted player type {player_type}")
         elif issubclass(player_type, AIPlayer):
             aiplayer_kwargs = player_kwargs
             aiplayer_kwargs.update(kwargs)
