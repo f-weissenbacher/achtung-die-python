@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 from game import AchtungDieKurveGame
-from players import WallAvoidingAIPlayer
+from players.aiplayers import WallAvoidingAIPlayer
 import pygame
 
 logging.basicConfig(level=logging.DEBUG,
