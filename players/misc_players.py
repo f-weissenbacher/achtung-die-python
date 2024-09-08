@@ -63,7 +63,3 @@ class FixedActionListPlayer(ScriptedPlayer):
         self.action_idx = (self.action_idx + 1) % self.list_length
 
 
-
-
-
-
