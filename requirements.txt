@@ -1,2 +1,7 @@
 pygame
 numpy
+pandas
+colorama
+shapely>=2
+coloredlogs
+matplotlib

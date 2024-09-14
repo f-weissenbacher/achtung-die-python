@@ -1,45 +1,61 @@
 import copy
 import itertools
 import logging
+from sqlite3 import NotSupportedError
 
 import matplotlib.pyplot as plt
 import pygame
 import numpy as np
 from players.player_base import PlayerAction, Player
 from players.dummy_player import DummyPlayer
-from .aiplayer_base import AIPlayer
+from players.aiplayers.aiplayer_base import AIPlayer
 
 import shapely
 
+# DEBUG:
+from debugging_helpers import plot_shapely_object
+
 num_update_ticks = 0
 
-def find_nearest_intersection(path1:shapely.LineString, path2:shapely.LineString, calc_dist_along_path2=False):
-    intersect = path1.intersection(path2)
-    dtc1 = np.nan
-    dtc2 = np.nan
-    if isinstance(intersect, shapely.Point):
-        # dtc == 'distance to conflict'
-        dtc1 = path1.line_locate_point(intersect)
-        if calc_dist_along_path2:
-            dtc2 = path2.line_locate_point(intersect)
+# FIXME: rework or create new function that assumes that path2 is a Polygon
+def distance_to_conflict(path:shapely.LineString, obstacle:shapely.Geometry):
+    # dtc == 'distance to conflict'
+
+    intersect = path.intersection(obstacle)
+
+    if intersect.is_empty:
+        # path does not intersect obstacle
+        dtc = np.nan
+
+    elif isinstance(intersect, shapely.Point):
+        # If obstacle is a line, path touches or crosses, if obstacle is 2d shape, path touches
+        dtc = path.line_locate_point(intersect)
+        #conflict_pt = intersect
+
     elif isinstance(intersect, shapely.MultiPoint):
-        closest_coll_pt = None
         for pt in intersect.geoms:
-            dist2pt1= path1.line_locate_point(pt)
-            if dist2pt1 < dtc1:
-                dtc1 = dist2pt1
-                closest_coll_pt = pt
+            dist2pt1 = path.line_locate_point(pt)
+            if dist2pt1 < dtc:
+                dtc = dist2pt1
+                #conflict_pt = pt
 
-        intersect = closest_coll_pt
-        if calc_dist_along_path2:
-            dtc2 = path2.line_locate_point(closest_coll_pt)
-    else:
-        intersect = None
+    elif isinstance(intersect, shapely.LineString):
+        # path crosses a 2d object
+        # assumption: intersect LineString is running in the same direction as path. Then the first point of intersect is
+        # the collision/conflict point
+        conflict_pt = intersect.coords[0]
+        dtc = path.line_locate_point(conflict_pt)
 
-    if calc_dist_along_path2:
-        return intersect, dtc1, dtc2
+    elif isinstance(intersect, shapely.MultiLineString):
+        # path intersects a 2d obstacle in multiple spots
+        # Assumptions: The order of the LineStrings in 'intersect' and their respective flow direction matches the direction of 'path'
+        conflict_pt = intersect.geoms[0].coords[0]
+        dtc = path.line_locate_point(conflict_pt)
+
     else:
-        return intersect, dtc1
+        raise RuntimeError(f"Encountered invalid state for 'intersect': {intersect}")
+
+    return dtc
 
 
 class NStepPlanPlayer(AIPlayer):
@@ -163,12 +179,19 @@ class NStepPlanPlayer(AIPlayer):
             #    logging.error("NaN of Inf in collidable trails")
             #    raise RuntimeError("NaN of Inf in collidable trails")
             collidable_trails = shapely.geometry.MultiLineString(collidable_trails).buffer(2*self.radius)
+
+            # DEBUG:
+            plot_shapely_object(collidable_trails, show=True)
+
             if isinstance(collidable_trails, shapely.Polygon):
+                # this happens if a trail forms a loop?
                 collidable_trails = shapely.MultiPolygon(polygons=[collidable_trails])
             else:
                 pass
+
         else:
             collidable_trails = shapely.geometry.MultiPolygon()
+
 
 
         for action_set in itertools.combinations_with_replacement([PlayerAction.KeepStraight, PlayerAction.SteerLeft, PlayerAction.SteerRight], self.N):
@@ -198,9 +221,9 @@ class NStepPlanPlayer(AIPlayer):
                         start_radial = turn_center - start_pos
                         phi_start = np.arctan2(start_radial[1], start_radial[0])
                         phi_vec = phi_start + dphi_direction * np.arange(self.ticks_per_step) * self.dphi_per_tick
-                        arc_vertices = np.hstack([self.min_turn_radius * np.cos(phi_vec),
-                                                  self.min_turn_radius * np.sin(phi_vec)])
-                        arc_vertices += turn_center
+                        arc_vertices = np.vstack([self.min_turn_radius * np.cos(phi_vec),
+                                                  self.min_turn_radius * np.sin(phi_vec)]).T
+                        arc_vertices += start_pos - start_radial # was turn_center, changed to fix weird bug
                         planned_path = shapely.LineString(arc_vertices)
 
                     # for t in range(step_n*self.ticks_per_step, (step_n+1)*self.ticks_per_step):
@@ -213,7 +236,6 @@ class NStepPlanPlayer(AIPlayer):
                     #     if plan_score < best_plan_score:
                     #         # stop moving dummy player
                     #         break
-
                     #
 
                     if plan_score < best_plan_score:
@@ -227,11 +249,11 @@ class NStepPlanPlayer(AIPlayer):
                 # Check for collisions with existing trails
                 predicted_trail = shapely.LineString(planned_path)
                 if not collidable_trails.is_empty:
-                    for trail in collidable_trails.geoms:
-                        intersect, dtc = find_nearest_intersection(predicted_trail, trail)
-                        if intersect is not None:
+                    for obstacle in collidable_trails.geoms:
+                        dtc = distance_to_conflict(predicted_trail, obstacle)
+                        if dtc is not None:
                             # ttc == 'ticks till conflict'
-                            ttc = int(dtc / self.dist_per_tick)
+                            ttc = int(dtc / self.dist_per_tick) # it is good that we implicitly round down here!
                             plan_score -= self.trail_penalty * self._gamma_vec[ttc]
                             # TODO: What if predicted trail hits multiple trails?
 
@@ -278,6 +300,12 @@ class NStepPlanPlayer(AIPlayer):
             #for coll_trail in self.collidable_trails.geoms:
             #    pygame.draw.polygon(trails_surf, color=coll_color, points=coll_trail.exterior.coords, width=0)
 
+            # DEBUG: Check if trails are correct
+            #plt.figure()
+            #plt.axis('equal')
+            #plt.plot(*self.pos, 'kp')
+            #plt.plot(*np.asarray(self.trail[-3:-1]).T, 'k.-')
+
             for trail in self.best_trails:
                 #pygame.draw.lines(surface, color=dbg_color, points=trail.coords, closed=False, width=2*self.radius )
                 trail_color = pygame.Color(np.asarray(cmap(norm(self.best_plan_score))) * 255)
@@ -286,5 +314,8 @@ class NStepPlanPlayer(AIPlayer):
                 #bold_trail = trail.buffer(self.radius).exterior
                 #pygame.draw.polygon(trails_surf, color=dbg_color, points=bold_trail.coords, width=0)
 
+                #plt.plot(*trail.coords.xy, '.-')
+
+            #plt.show(block=True)
 
             surface.blit(trails_surf, trails_surf.get_rect())

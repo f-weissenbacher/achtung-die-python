@@ -40,8 +40,8 @@ dist_per_step = 55.
 ticks_per_step = int(dist_per_step/game.dist_per_tick)
 plan_update_period=int(0.2*ticks_per_step)
 print("Plan update", plan_update_period)
-p_ut = game.spawn_player(1, init_pos=(100,300), init_angle=np.deg2rad(0.), player_type=NStepPlanPlayer, num_steps=2,
-                         ticks_per_step=ticks_per_step, startblock_length=50, plan_update_period=plan_update_period)
+p_ut = game.spawn_player(1, init_pos=(100,300), init_angle=np.deg2rad(0.), player_type=NStepPlanPlayer, num_steps=1,
+                         ticks_per_step=ticks_per_step, startblock_length=np.inf, plan_update_period=plan_update_period)
 
 game.spawn_player(2, init_pos=(135,250), init_angle=np.deg2rad(5.), player_type=WallAvoidingAIPlayer,
                   min_turn_radius=game.min_turn_radius, safety_factor=1.05)
@@ -73,17 +73,22 @@ while game.running and tick <= max_ticks:
     tf_dts.append(time.time() - tf_t0)
     #p1.draw_turn_circles(game.screen, p1.turn_radius)
     game.flush_display()
+    #pygame.display.flip()
     tick += 1
 
     if stepping:
         wait_on_frame = True
-        while wait_on_frame:
+        while game.running and wait_on_frame:
             for event in pygame.event.get():
+                # was game window closed?
+                if event.type == pygame.QUIT:
+                    game.running = False
                 # Did the user hit a key?
                 if event.type == pygame.KEYDOWN:
                     # Was it the Escape key? If so, stop the loop.
                     if event.key == pygame.K_SPACE:
                         wait_on_frame = False
+
 
 if game.running:
     logging.info(f"SUCCESS: {p_ut} finished without collisions! (seed: {seed})")
