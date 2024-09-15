@@ -23,9 +23,11 @@ def distance_to_conflict(path:shapely.LineString, obstacle:shapely.Geometry):
 
     intersect = path.intersection(obstacle)
 
+    dtc = np.inf
+
     if intersect.is_empty:
         # path does not intersect obstacle
-        dtc = np.nan
+        return dtc
 
     elif isinstance(intersect, shapely.Point):
         # If obstacle is a line, path touches or crosses, if obstacle is 2d shape, path touches
@@ -43,13 +45,13 @@ def distance_to_conflict(path:shapely.LineString, obstacle:shapely.Geometry):
         # path crosses a 2d object
         # assumption: intersect LineString is running in the same direction as path. Then the first point of intersect is
         # the collision/conflict point
-        conflict_pt = intersect.coords[0]
+        conflict_pt = shapely.Point(intersect.coords[0])
         dtc = path.line_locate_point(conflict_pt)
 
     elif isinstance(intersect, shapely.MultiLineString):
         # path intersects a 2d obstacle in multiple spots
         # Assumptions: The order of the LineStrings in 'intersect' and their respective flow direction matches the direction of 'path'
-        conflict_pt = intersect.geoms[0].coords[0]
+        conflict_pt = shapely.Point(intersect.geoms[0].coords[0])
         dtc = path.line_locate_point(conflict_pt)
 
     else:
@@ -105,6 +107,7 @@ class NStepPlanPlayer(AIPlayer):
         self._gamma_vec = np.cumprod([1] + [self.discount_per_tick]*(self.N * self.ticks_per_step))
 
         self.best_trails = []
+        self.best_plan_score = np.nan
         self.collidable_trails = shapely.MultiPolygon()
 
         self.num_updates = 0
@@ -181,13 +184,15 @@ class NStepPlanPlayer(AIPlayer):
             collidable_trails = shapely.geometry.MultiLineString(collidable_trails).buffer(2*self.radius)
 
             # DEBUG:
-            plot_shapely_object(collidable_trails, show=True)
+            #plot_shapely_object(collidable_trails, show=True)
 
             if isinstance(collidable_trails, shapely.Polygon):
                 # this happens if a trail forms a loop?
                 collidable_trails = shapely.MultiPolygon(polygons=[collidable_trails])
-            else:
+            elif isinstance(collidable_trails, shapely.MultiPolygon):
                 pass
+            else:
+                raise RuntimeError(f"Variable 'collidable_trails' has invalid type '{type(collidable_trails)}'")
 
         else:
             collidable_trails = shapely.geometry.MultiPolygon()
@@ -222,21 +227,24 @@ class NStepPlanPlayer(AIPlayer):
                         phi_start = np.arctan2(start_radial[1], start_radial[0])
                         phi_vec = phi_start + dphi_direction * np.arange(self.ticks_per_step) * self.dphi_per_tick
                         arc_vertices = np.vstack([self.min_turn_radius * np.cos(phi_vec),
-                                                  self.min_turn_radius * np.sin(phi_vec)]).T
-                        arc_vertices += start_pos - start_radial # was turn_center, changed to fix weird bug
+                                                  -self.min_turn_radius * np.sin(phi_vec)]).T
+                        arc_vertices += turn_center # was turn_center, changed to fix weird bug
                         planned_path = shapely.LineString(arc_vertices)
 
-                    # for t in range(step_n*self.ticks_per_step, (step_n+1)*self.ticks_per_step):
-                    #     dp.apply_action(a)
-                    #     dp.move()
-                    #
-                    #     if not self._pos_inside_bounds(dp.pos, border_width=self.radius):
-                    #         plan_score -= self.wall_penalty * self._gamma_vec[t]
-                    #
-                    #     if plan_score < best_plan_score:
-                    #         # stop moving dummy player
-                    #         break
-                    #
+                        #DEBUG
+                        plt.figure()
+                        plt.plot(*start_pos, 'ks')
+                        plt.plot(*turn_center, 'mo')
+                        plt.plot(*arc_vertices.T, 'r.-')
+                        plt.gca().invert_yaxis()
+                        plt.axis('equal')
+                        #plt.show(block=True)
+
+
+                    plan_score = self._penalize_wall_collisions(dp, a, plan_score, best_plan_score, step_n)
+                    #DEBUG
+                    plt.plot(*np.array(dp.trail).T,'C0.--')
+                    plt.show(block=True)
 
                     if plan_score < best_plan_score:
                         # try next plan
@@ -249,14 +257,22 @@ class NStepPlanPlayer(AIPlayer):
                 # Check for collisions with existing trails
                 predicted_trail = shapely.LineString(planned_path)
                 if not collidable_trails.is_empty:
+                    # ttc == 'ticks till conflict'
+                    # min_ttc tracks the smallest time to a conflict == how long a trail is guaranteed to be
+                    # conflict-free at maximum!
+                    min_ttc = np.inf
                     for obstacle in collidable_trails.geoms:
                         dtc = distance_to_conflict(predicted_trail, obstacle)
-                        if dtc is not None:
-                            # ttc == 'ticks till conflict'
+                        if dtc < np.inf:
                             ttc = int(dtc / self.dist_per_tick) # it is good that we implicitly round down here!
-                            plan_score -= self.trail_penalty * self._gamma_vec[ttc]
-                            # TODO: What if predicted trail hits multiple trails?
+                            if ttc < min_ttc:
+                                min_ttc = ttc
 
+                    if min_ttc < self._gamma_vec.size:
+                        # Calculate collision penalty based on minimal TTC
+                        plan_score -= self.trail_penalty * self._gamma_vec[min_ttc]
+
+                # Update best plan
                 if plan_score > best_plan_score:
                     best_plans = [plan]
                     best_plan_score = plan_score
@@ -282,6 +298,20 @@ class NStepPlanPlayer(AIPlayer):
 
         return best_plan
 
+    def _penalize_wall_collisions(self, dp: DummyPlayer, a: PlayerAction, plan_score:float, best_plan_score:float,
+                                  step_n=0):
+        for t in range(step_n * self.ticks_per_step, (step_n + 1) * self.ticks_per_step):
+            dp.apply_action(a)
+            dp.move()
+
+            if not self._pos_inside_bounds(dp.pos, border_width=self.radius):
+                plan_score -= self.wall_penalty * self._gamma_vec[t]
+
+            if plan_score < best_plan_score:
+                # stop moving dummy player
+                break
+
+        return plan_score
 
     def draw_debug_info(self, surface:pygame.Surface):
         if self.in_planning_tick:
