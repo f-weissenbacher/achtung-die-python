@@ -211,44 +211,15 @@ class NStepPlanPlayer(AIPlayer):
                 plan_score = 0.
                 # Design of heuristic: Only penalties (negative rewards). As soon as score of current plan
                 # drops below score of best plan, we can go to the next one!
-                logging.debug(f"Plan: {[a.name for a in plan]}")
+                #logging.debug(f"Plan: {[a.name for a in plan]}")
                 for step_n, a in enumerate(plan):
-                    # print(plan)
-                    start_pos = self.pos
-                    start_velvec = self.vel_vec
-
                     t0 = time.time()
-                    if a == PlayerAction.KeepStraight:
-                        planned_path = shapely.LineString([start_pos, start_pos + start_velvec * self.ticks_per_step])
-                    else:
-                        if a == PlayerAction.SteerLeft:
-                            turn_center = dp.turn_centers()['left']
-                            dphi_direction = 1
-                        else:
-                            turn_center = dp.turn_centers()['right']
-                            dphi_direction = -1
-
-                        start_radial = turn_center - start_pos
-                        phi_start = np.arctan2(start_radial[1], start_radial[0])
-                        phi_vec = phi_start + dphi_direction * np.arange(self.ticks_per_step) * self.dphi_per_tick
-                        arc_vertices = np.vstack([self.min_turn_radius * np.cos(phi_vec),
-                                                  -self.min_turn_radius * np.sin(phi_vec)]).T
-                        arc_vertices += turn_center # was turn_center, changed to fix weird bug
-                        planned_path = shapely.LineString(arc_vertices)
-
-                        #DEBUG
-                        #plt.figure()
-                        #plt.plot(*start_pos, 'ks')
-                        #plt.plot(*turn_center, 'mo')
-                        #plt.plot(*arc_vertices.T, 'r.-')
-                        #plt.gca().invert_yaxis()
-                        #plt.axis('equal')
-                        #plt.show(block=True)
 
                     plan_score = self._penalize_wall_collisions(dp, a, plan_score, best_plan_score, step_n)
 
-                    logging.debug(f"DP movement: {(time.time() - t0)*1000:.3f} ms {a.name}")
+                    planned_path = shapely.LineString(dp.trail)
 
+                    logging.debug(f"DP movement: {(time.time() - t0)*1000:.3f} ms {a.name}")
 
                     #DEBUG
                     #plt.plot(*np.array(dp.trail).T,'C0.--')
