@@ -1,6 +1,7 @@
 import copy
 import itertools
 import logging
+import time
 from sqlite3 import NotSupportedError
 
 import matplotlib.pyplot as plt
@@ -200,6 +201,7 @@ class NStepPlanPlayer(AIPlayer):
 
 
         for action_set in itertools.combinations_with_replacement([PlayerAction.KeepStraight, PlayerAction.SteerLeft, PlayerAction.SteerRight], self.N):
+            #logging.debug(action_set)
             for plan in set(itertools.permutations(action_set)):
                 # for plan in itertools.permutations(action_set):
                 #dp = Player(0, "dummy", init_pos=self.pos, init_angle=self.angle, dist_per_tick=self.dist_per_tick*self.ticks_per_step,
@@ -209,10 +211,13 @@ class NStepPlanPlayer(AIPlayer):
                 plan_score = 0.
                 # Design of heuristic: Only penalties (negative rewards). As soon as score of current plan
                 # drops below score of best plan, we can go to the next one!
+                logging.debug(f"Plan: {[a.name for a in plan]}")
                 for step_n, a in enumerate(plan):
                     # print(plan)
                     start_pos = self.pos
                     start_velvec = self.vel_vec
+
+                    t0 = time.time()
                     if a == PlayerAction.KeepStraight:
                         planned_path = shapely.LineString([start_pos, start_pos + start_velvec * self.ticks_per_step])
                     else:
@@ -232,19 +237,22 @@ class NStepPlanPlayer(AIPlayer):
                         planned_path = shapely.LineString(arc_vertices)
 
                         #DEBUG
-                        plt.figure()
-                        plt.plot(*start_pos, 'ks')
-                        plt.plot(*turn_center, 'mo')
-                        plt.plot(*arc_vertices.T, 'r.-')
-                        plt.gca().invert_yaxis()
-                        plt.axis('equal')
+                        #plt.figure()
+                        #plt.plot(*start_pos, 'ks')
+                        #plt.plot(*turn_center, 'mo')
+                        #plt.plot(*arc_vertices.T, 'r.-')
+                        #plt.gca().invert_yaxis()
+                        #plt.axis('equal')
                         #plt.show(block=True)
 
-
                     plan_score = self._penalize_wall_collisions(dp, a, plan_score, best_plan_score, step_n)
+
+                    logging.debug(f"DP movement: {(time.time() - t0)*1000:.3f} ms {a.name}")
+
+
                     #DEBUG
-                    plt.plot(*np.array(dp.trail).T,'C0.--')
-                    plt.show(block=True)
+                    #plt.plot(*np.array(dp.trail).T,'C0.--')
+                    #plt.show(block=True)
 
                     if plan_score < best_plan_score:
                         # try next plan
@@ -339,7 +347,7 @@ class NStepPlanPlayer(AIPlayer):
             for trail in self.best_trails:
                 #pygame.draw.lines(surface, color=dbg_color, points=trail.coords, closed=False, width=2*self.radius )
                 trail_color = pygame.Color(np.asarray(cmap(norm(self.best_plan_score))) * 255)
-                print(self.best_plan_score)
+                #print(self.best_plan_score)
                 pygame.draw.aalines(surface, color=trail_color, points=trail.coords, closed=False)
                 #bold_trail = trail.buffer(self.radius).exterior
                 #pygame.draw.polygon(trails_surf, color=dbg_color, points=bold_trail.coords, width=0)

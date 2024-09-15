@@ -17,7 +17,7 @@ import pygame
 from game import AchtungDieKurveGame
 from players.aiplayers import NStepPlanPlayer, WallAvoidingAIPlayer
 
-log_level = logging.INFO
+log_level = logging.DEBUG
 log_format = "%(relativeCreated)d %(levelname)s [%(module)s.%(funcName)s:%(lineno)d] - %(message)s"
 
 log.setup_colored_logs(level=log_level, fmt=log_format, do_basic_setup=True)
@@ -58,7 +58,7 @@ game.spawn_player(3, init_pos=(135,350), init_angle=np.deg2rad(-5.), player_type
 #R_min = game.min_turn_radius
 #center_rect = pygame.rect.Rect(2*R_min, 2*R_min, game.screen_width - 4*R_min, game.screen_height - 4*R_min)
 
-stepping = True
+stepping = False
 
 max_ticks = 500
 tick = 0
