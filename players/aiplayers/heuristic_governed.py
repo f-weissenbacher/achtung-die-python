@@ -266,14 +266,14 @@ class NStepPlanPlayer(AIPlayer):
         elif num_best_plans == 1:
             best_plan = best_plans[0]
         else:
-            logging.debug(f"Found {num_best_plans} equally good plans, selecting one at random")
+            logging.debug(f"{self}: found {num_best_plans} equally good plans, selecting one at random")
             best_plan = best_plans[np.random.randint(0,num_best_plans)]
 
         self.best_trails = best_trails
         self.best_plan_score = best_plan_score
         self.collidable_trails = collidable_trails
 
-        logging.debug(f"Updated N-step plan (score {best_plan_score:.1f}) is: {[s.value for s in best_plan]}")
+        logging.debug(f"{self}: Updated N-step plan (score {best_plan_score:.1f}) is: {[s.value for s in best_plan]}")
 
         return best_plan
 
