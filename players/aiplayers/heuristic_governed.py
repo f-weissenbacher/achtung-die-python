@@ -2,13 +2,12 @@ import copy
 import itertools
 import logging
 import time
-from sqlite3 import NotSupportedError
 
 import matplotlib.pyplot as plt
 import pygame
 import numpy as np
 from players.player_base import PlayerAction, Player
-from players.dummy_player import DummyPlayer
+from players.misc_players import DummyPlayer
 from players.aiplayers.aiplayer_base import AIPlayer
 
 import shapely
