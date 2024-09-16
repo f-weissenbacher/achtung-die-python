@@ -527,18 +527,21 @@ class AchtungDieKurveGame:
                 logging.info("Game window was closed by user")
                 self.quit()
 
+
     def print_scoreboard(self, pretty=True):
         if pretty:
             sb_dict = {}
             for p in self.players:
-                sb_dict[p.idx] = {'Name': str(p), 'Score': self.scoreboard[p.idx], 'Distance travelled': p.dist_travelled,
+                sb_dict[p.idx] = {'Name': str(p), 'Score': self.scoreboard[p.idx], 'Distance': p.dist_travelled,
                                   'Total Reward': p.total_reward}
 
             scoreboard = pd.DataFrame.from_dict(sb_dict, orient='index')
             scoreboard.sort_values(by='Score', inplace=True, ascending=False)
             scoreboard = scoreboard.reset_index(drop=True)
             scoreboard.index += 1
-            scoreboard_txt = str(scoreboard)
+            with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+                scoreboard_txt = str(scoreboard)
+
             line_width = scoreboard_txt.index('\n')
             scoreboard_txt = "\n".join(scoreboard_txt.splitlines()[:-2])
             #print(line_width)
@@ -546,6 +549,7 @@ class AchtungDieKurveGame:
             print(scoreboard_txt)
         else:
             print(self.scoreboard)
+
 
     def print_timing_stats(self):
         timing_history = pd.DataFrame.from_records(self.timing_stats)
@@ -567,9 +571,6 @@ class AchtungDieKurveGame:
             print("---- Average FPS (FPS not locked) ----")
         print(f"FPS (based on timing total): {avg_fps_total:6.1f}")
         print(f"FPS (based on frame time):   {avg_fps_frametime:6.1f} ")
-
-
-
 
 
     def quit(self, force=False):
