@@ -86,7 +86,7 @@ class AchtungDieKurveGame:
         self.screen_width = 800
         self.screen_height = 600
         self.min_turn_radius = 0.05 * self.screen_width # minimum turn radius in pixels
-        self.spawn_safety_distance = 0.5 * self.min_turn_radius
+        self.spawn_safety_distance = 0.75 * self.min_turn_radius
         #self.min_turn_radius = 100  # minimum turn radius in pixels
         self.player_speed = game_speed_factor * 0.075 * self.screen_width # pixels travelled per second of game time
         self.player_radius = 2.0
