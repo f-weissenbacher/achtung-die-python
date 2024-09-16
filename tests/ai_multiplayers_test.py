@@ -11,7 +11,7 @@ import random
 
 log.setup_colored_logs('info', do_basic_setup=True)
 
-game = AchtungDieKurveGame(mode="headless", target_fps=20)
+game = AchtungDieKurveGame(mode="gui", target_fps=30)
 
 #game.spawn_player(4, player_type="human", name="fawi")
 #game.spawn_player(5, player_type=WallAvoidingAIPlayer, min_turn_radius=game.min_turn_radius)
@@ -28,7 +28,7 @@ for k in range(1,2):
 for k in range(2,7):
     game.spawn_player(k, player_type=RandomSteeringAIPlayer)
 
-game.run_game_loop(close_when_finished=False)
+game.run_game_loop(close_when_finished=True)
 game.print_scoreboard()
 
 game.print_timing_stats()

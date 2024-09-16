@@ -59,7 +59,9 @@ class AchtungDieKurveGame:
 
     bg_color = pygame.Color(30,30,30)
 
-    def __init__(self, mode="gui", target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
+    supported_game_modes = ["gui", "gui-debug", "headless"]
+
+    def __init__(self, mode="gui", target_fps=30., game_speed_factor=1.0, run_until_last_player_dies=False,
                  wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
                  survival_reward=100., ignore_self_collisions=False, rng_seed=None):
         """
@@ -78,8 +80,16 @@ class AchtungDieKurveGame:
             np.random.seed(rng_seed)
         self._rng_seed = rng_seed
 
+
         if mode in ["gui", "gui-debug", "headless"]:
             self.mode = mode
+        else:
+            raise ValueError(f"Invalid value '{mode}' selected for game mode. Supported are: {AchtungDieKurveGame.supported_game_modes}.")
+
+        if self.mode == 'headless':
+            self.fps_locked = False
+        else:
+            self.fps_locked = True
 
         self.running = False
         self.paused = False
@@ -418,8 +428,9 @@ class AchtungDieKurveGame:
         # Variable to keep the main loop running
         self.running = True
         closed_by_user = False
-        # Main loop
+        # Main game loop
         while self.running:
+            ft_t0 = time.time() # frame time timer
             timing = {}
             # Look at every event in the queue
             for event in pygame.event.get():
@@ -436,6 +447,7 @@ class AchtungDieKurveGame:
                     closed_by_user = True
 
             if self.paused:
+                # avoid looping too fast while paused
                 time.sleep(1/self.target_fps)
                 continue
 
@@ -449,6 +461,7 @@ class AchtungDieKurveGame:
                 self.draw_wall_zones()
                 timing['draw_dbg'] = time.time() - t0
 
+            # Advance game state by one tick
             tf_timing = self.tick_forward()
             timing.update(tf_timing)
 
@@ -458,10 +471,15 @@ class AchtungDieKurveGame:
                 pygame.display.flip()
             timing['draw'] += time.time() - t0
 
-            self.timing_stats.append(timing)
+            if self.fps_locked:
+                # Ensure program maintains a target FPS
+                self.clock.tick(self.target_fps)
+            else:
+                self.clock.tick() # used in headless mode
 
-            # Ensure program maintains a rate of 30 frames per second
-            self.clock.tick(self.target_fps)
+            # frame time: source of FPS calculation
+            timing['frame_time'] = time.time() - ft_t0
+            self.timing_stats.append(timing)
 
         # game has finished
         if self.mode == "gui" and self.winner is not None:
@@ -531,12 +549,26 @@ class AchtungDieKurveGame:
 
     def print_timing_stats(self):
         timing_history = pd.DataFrame.from_records(self.timing_stats)
+
+        avg_fps_frametime = 1 / timing_history.frame_time.mean()
+
+        timing_history.drop('frame_time',axis='columns', inplace=True)
         timing_history['total'] = timing_history.sum(axis=1)
-        average_times = timing_history.mean(axis=0) * 1000.
+        average_times = timing_history.mean(axis=0)
         average_times.sort_values(ascending=False, inplace=True)
-        print("---- Computation Time [ms] per Frame (avg)")
-        print("\n".join(str(average_times).splitlines()[:-1]))
-        #print(timing_history)
+
+        avg_fps_total = 1 / average_times.total
+
+        print("---- Computation Time [ms] per Frame (avg) ----")
+        print("\n".join(str(average_times * 1000.).splitlines()[:-1]))
+        if self.fps_locked:
+            print(f"---- Average FPS (FPS locked, Target: {self.target_fps:.1f}) ----")
+        else:
+            print("---- Average FPS (FPS not locked) ----")
+        print(f"FPS (based on timing total): {avg_fps_total:6.1f}")
+        print(f"FPS (based on frame time):   {avg_fps_frametime:6.1f} ")
+
+
 
 
 
