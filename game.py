@@ -127,13 +127,20 @@ class AchtungDieKurveGame:
         # Initialize pygame
         pygame.init()
         # Fonts
-        self.font = pygame.freetype.SysFont(pygame.freetype.get_default_font(), size=28)
+        self.font = pygame.freetype.SysFont(pygame.freetype.get_default_font(), size=22)
         #self.font = pygame.font.SysFont("Arial", size=30)
 
         # Create the screen object
         # The size is determined by the constant SCREEN_WIDTH and SCREEN_HEIGHT
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        flags = pygame.HWSURFACE | pygame.SCALED
+        if self.mode == 'headless':
+            flags |= pygame.HIDDEN
+        else:
+            flags |= pygame.SHOWN
+
+        self.screen = pygame.display.set_mode(size=(self.screen_width, self.screen_height), flags=flags)
         self.screen.fill(self.bg_color)
+
         # Setup game clock
         self.clock = pygame.time.Clock()
 
@@ -192,7 +199,7 @@ class AchtungDieKurveGame:
         if not isinstance(color, pygame.Color):
             # The pygame.Color constructor accepts:
             # - a pygame.Color
-            # - the name of a color in pygame.olordict.THECOLORS
+            # - the name of a color in pygame.colordict.THECOLORS
             # - a RGB tuple
             color = pygame.Color(color)
 
@@ -262,14 +269,6 @@ class AchtungDieKurveGame:
 
     # TODO: implement external tick control
 
-    #def tick(self):
-    #    """Advance game by one tick == frame"""
-    #
-    #    running = True
-    #
-    #    return running
-
-
     def initialize_players(self, player_ids, positions=None):
         if positions is None:
             positions = dict()
@@ -298,6 +297,7 @@ class AchtungDieKurveGame:
 
         timing = {'coll_checks':0., 'draw':0., 'draw_dbg':0.}
 
+        # NOTE: parallelize this?
         for p in self.active_players:
             # Process player input
             p.apply_steering(pressed_keys)
@@ -494,7 +494,8 @@ class AchtungDieKurveGame:
             self.show_win_message()
 
         if close_when_finished:
-            pygame.time.wait(1200)
+            if self.mode != 'headless':
+                pygame.time.wait(1200)
             self.quit()
         else:
             self.wait_for_window_close()
@@ -551,7 +552,7 @@ class AchtungDieKurveGame:
                 scoreboard_txt = str(scoreboard)
 
             line_width = scoreboard_txt.index('\n')
-            scoreboard_txt = "\n".join(scoreboard_txt.splitlines()[:-2])
+            scoreboard_txt = "\n".join(scoreboard_txt.splitlines())
             #print(line_width)
             print("---- Scoreboard " + "-" * max([0, line_width-16]))
             print(scoreboard_txt)

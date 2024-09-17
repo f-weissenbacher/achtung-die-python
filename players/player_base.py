@@ -165,7 +165,7 @@ class Player(pygame.sprite.Sprite):
         self.trail.pop(-1)
         self.dist_travelled -= self.dist_per_tick
         self.total_reward -= self.dist_per_tick
-        self.dist_to_next_hole -= self.dist_per_tick
+        self.dist_to_next_hole += self.dist_per_tick
 
 
     def draw(self, surface):
