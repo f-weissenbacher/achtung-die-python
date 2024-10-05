@@ -1,7 +1,10 @@
-"""Multiprocessing Agent Tester Script"""
+"""Agent Tester Script that uses subprocessing"""
 import logging
 import multiprocessing
+import subprocess
 import time
+import os
+import pickle as pkl
 
 import numpy as np
 from game import AchtungDieKurveGame
@@ -11,32 +14,19 @@ from log import setup_colored_logs
 
 setup_colored_logs(logging.WARNING)
 
+import ruamel.yaml as yaml
 
+def run_in_subprocess(run_dir):
+    subprocess.run(f"python ./execute_single_run.py {run_dir}", check=True)
 
-def execute_single_run(game_settings, agent_under_test:dict, opponent_settings:list):
-
-    game = AchtungDieKurveGame(mode='headless', **game_settings)
-
-    # Spawn agent under test
-    #player_type = agent_under_test.pop('class')
-    game.spawn_player(1, player_type=agent_under_test['type'], name="Agent under Test", **agent_under_test['kwargs'])
-
-    max_idx = min(max(AchtungDieKurveGame.valid_player_indices), len(opponent_settings)+1)
-    for k, idx in enumerate(range(2, max_idx+1)):
-        game.spawn_player(idx, player_type=opponent_settings[k]['type'], **opponent_settings[k]['kwargs'])
-
-    # Run game
-    game.run_game_loop(close_when_finished=True)
-
-    return game
 
 if __name__ == "__main__":
 
-    num_runs = 5
+    num_runs = 10
 
     game_settings = dict(target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
                      wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
-                     survival_reward=100., ignore_self_collisions=False, rng_seed=None)
+                     survival_reward=100., ignore_self_collisions=False, rng_seed=12345)
 
     agent_ut_info = {'type': NStepPlanPlayer,
                      'kwargs': dict(num_steps=2, dist_per_step=40.0, plan_update_period=0.15,
@@ -54,12 +44,29 @@ if __name__ == "__main__":
     # Simplest case: num_runs repetitions of the same settings
     run_settings_batch = [(game_settings, agent_ut_info, opponent_settings)] * num_runs
 
-    with  multiprocessing.Pool(processes=2) as pool:
-        finished_games = pool.starmap(execute_single_run, run_settings_batch)
+    # Prepare run batch folder
+    batch_dir = os.path.abspath(os.path.join(".", "run-batch"))
+    os.makedirs(batch_dir, exist_ok=True)
 
-    for run_idx, fg in enumerate(finished_games):
-        print(f"==== Run {run_idx+1} ====")
-        fg.print_scoreboard()
+    # Create and prepare one folder for each run:
+    run_dirs = []
+    for run_idx in range(num_runs):
+        run_dir = os.path.join(batch_dir, f"run-{run_idx:04d}")
+        os.makedirs(run_dir, exist_ok=True)
+
+        # Write run_settings pickle
+        with open(os.path.join(run_dir, "run_settings.pkl"),'wb') as rsf:
+            pkl.dump({'game_settings': game_settings,
+                      'agent_ut_info':agent_ut_info,
+                      'opponent_settings':opponent_settings},
+                      rsf)
+
+        run_dirs.append((run_dir,))
+
+
+    with multiprocessing.Pool(processes=4) as pool:
+        pool.starmap(run_in_subprocess, run_dirs)
+
 
     dt = time.time() - t0
     print(f"\nTotal runtime for {num_runs} runs: {dt:.3f} seconds")

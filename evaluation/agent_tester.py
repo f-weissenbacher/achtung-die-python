@@ -31,7 +31,7 @@ num_runs = 10
 
 game_settings = dict(target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
                  wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
-                 survival_reward=100., ignore_self_collisions=False, rng_seed=None)
+                 survival_reward=100., ignore_self_collisions=False, rng_seed=12345)
 
 agent_ut_info = {'type': NStepPlanPlayer,
                  'kwargs': dict(num_steps=2, dist_per_step=40.0, plan_update_period=0.15,

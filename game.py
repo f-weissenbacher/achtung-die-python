@@ -598,6 +598,17 @@ class AchtungDieKurveGame:
         pygame.quit()
 
 
+    def save_state_to_file(self, fp:str):
+        data = {'scoreboard': self.scoreboard, 'trails': {p.idx: p.trail for p in self.players}}
+
+        if fp.endswith('.pkl'):
+            import pickle as pkl
+            with open(fp, 'wb') as f:
+                pkl.dump(data, f)
+
+        else:
+            raise NotImplementedError
+
 
 
 
