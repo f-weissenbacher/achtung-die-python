@@ -217,13 +217,18 @@ class NStepPlanPlayer(AIPlayer):
 
                     plan_score = self._penalize_wall_collisions(dp, a, plan_score, best_plan_score, step_n)
 
-                    planned_path = shapely.LineString(dp.trail)
+                    # for t in range(step_n*self.ticks_per_step, (step_n+1)*self.ticks_per_step):
+                    #     dp.apply_action(a)
+                    #     dp.move()
+                    #
+                    #     if not self._pos_inside_bounds(dp.pos, border_width=self.radius):
+                    #         plan_score -= self.wall_penalty * self._gamma_vec[t]
+                    #
+                    #     if plan_score < best_plan_score:
+                    #         # stop moving dummy player
+                    #         break
 
-                    logging.debug(f"DP movement: {(time.time() - t0)*1000:.3f} ms {a.name}")
-
-                    #DEBUG
-                    #plt.plot(*np.array(dp.trail).T,'C0.--')
-                    #plt.show(block=True)
+                    #
 
                     if plan_score < best_plan_score:
                         # try next plan
@@ -233,17 +238,19 @@ class NStepPlanPlayer(AIPlayer):
                     # The heuristic score is already below the best plan's, no reason to pursue this plan any further
                     continue
 
+                planned_path = shapely.LineString(dp.trail)
+
                 # Check for collisions with existing trails
                 predicted_trail = shapely.LineString(planned_path)
+                min_ttc = np.inf
                 if not collidable_trails.is_empty:
-                    # ttc == 'ticks till conflict'
-                    # min_ttc tracks the smallest time to a conflict == how long a trail is guaranteed to be
-                    # conflict-free at maximum!
-                    min_ttc = np.inf
-                    for obstacle in collidable_trails.geoms:
-                        dtc = distance_to_conflict(predicted_trail, obstacle)
-                        if dtc < np.inf:
-                            ttc = int(dtc / self.dist_per_tick) # it is good that we implicitly round down here!
+                    for trail in collidable_trails.geoms:
+                        dtc = distance_to_conflict(predicted_trail, trail)
+                        if dtc != np.inf:
+                            # ttc == 'ticks till conflict'
+                            ttc = int(dtc / self.dist_per_tick)
+                            plan_score -= self.trail_penalty * self._gamma_vec[ttc]
+                            # TODO: What if predicted trail hits multiple trails?
                             if ttc < min_ttc:
                                 min_ttc = ttc
 
