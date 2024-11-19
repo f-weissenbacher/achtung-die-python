@@ -1,5 +1,8 @@
 from enum import IntEnum
 
+from players.player_actor import PlayerActor
+
+
 class PlayerAction(IntEnum):
     SteerLeft = -1
     KeepStraight = 0
@@ -21,20 +24,15 @@ import logging
 #import random
 import numpy as np
 
-# Import pygame.locals for easier access to key coordinates
-# Updated to conform to flake8 and black standards
-import pygame
-from pygame.locals import RLEACCEL
-import pygame.freetype  # Import the freetype module.
-
 from math import pi, sin, cos, sqrt, ceil
 
 logger = logging.getLogger(__name__)
 
-class Player(pygame.sprite.Sprite):
+class Player:
     def __init__(self, idx=1, name=None, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01, radius=2,
-                 color=(255, 10, 10), color_name="Red", steer_left_key=pygame.K_LEFT, steer_right_key=pygame.K_DOWN,
-                 hole_width=3.0, startblock_length=100., min_dist_between_holes=200., max_dist_between_holes=1500.):
+                 color=(255, 10, 10), color_name="Red", steer_left_key=1073741904, steer_right_key=1073741905,
+                 hole_width=3.0, startblock_length=100., min_dist_between_holes=200., max_dist_between_holes=1500.,
+                 attach_actor=False):
         """
         Base class for Achtung,die Kurve players
 
@@ -66,6 +64,10 @@ class Player(pygame.sprite.Sprite):
         else:
             self.name = name
 
+        self.actor = None
+        if attach_actor:
+            self.attach_actor()
+
         self.pos = np.array(init_pos, dtype=float)  # x-position in game world (pixel coordinates)
         self.dist_per_tick = dist_per_tick
         self.dphi_per_tick = dphi_per_tick
@@ -82,10 +84,8 @@ class Player(pygame.sprite.Sprite):
 
         # Setup sprite == filled circle
         self.radius = int(radius)
-        self.surf = pygame.Surface((2 * self.radius, 2 * self.radius))
-        pygame.draw.circle(self.surf, color, (self.radius, self.radius), self.radius, 0)
-        self.surf.set_colorkey((0, 0, 0), RLEACCEL)  # set transparent color
-        #self.rect = self.surf.get_rect(center=self.pos)
+
+        #self.rect = self.brush.get_rect(center=self.pos)
         self.trail = [self.pos.copy()]  # Trail behind player (in cartesian coordinates)
         self.angle_history = [self.angle]
 
@@ -116,6 +116,10 @@ class Player(pygame.sprite.Sprite):
     @property
     def active_hole(self):
         return self.dist_to_next_hole <= 0.0
+
+    def attach_actor(self):
+        if self.actor is None:
+            self.actor = PlayerActor(self)
 
     def apply_steering(self, pressed_keys):
         # note: this function should only be called once per tick for all regular players
@@ -159,6 +163,7 @@ class Player(pygame.sprite.Sprite):
         else:
             self.trail.append(self.pos.copy())  # save updated position in history
 
+
     def undo_last_move(self):
         """ Undo the last move. Assumes that no steering has yet been applied in this turn"""
         self.pos -= self.vel_vec
@@ -167,17 +172,6 @@ class Player(pygame.sprite.Sprite):
         self.total_reward -= self.dist_per_tick
         self.dist_to_next_hole += self.dist_per_tick
 
-
-    def draw(self, surface):
-        """ Draw on surface """
-        # blit yourself at your current position
-        if not self.active_hole:
-            surface.blit(self.surf, self.blit_anchor)
-
-    def draw_debug_info(self, surface):
-        """ Draw debug info for player"""
-        # Draw velocity vector
-        pygame.draw.line(surface, self.color, self.pos, self.pos + self.vel_vec, width=1)
 
     def check_self_collision(self):
         num_recent_frames_to_skip = int(ceil(5 * self.radius / self.dist_per_tick))
@@ -194,6 +188,7 @@ class Player(pygame.sprite.Sprite):
         else:
             return False
 
+
     def check_player_collision(self, other):
         sq_dist = np.sum((np.asarray(other.trail) - self.pos) ** 2, axis=1)
         frame_collides = sq_dist < self.radius ** 2
@@ -204,6 +199,7 @@ class Player(pygame.sprite.Sprite):
             return True
         else:
             return False
+
 
     def turn_centers(self, turn_radius=None):
         if turn_radius is None:
@@ -229,18 +225,16 @@ class Player(pygame.sprite.Sprite):
         return turn_centers
 
 
-    # DEBUG Utilities ------------------------------
-    def draw_turn_circles(self, surface, turn_radius=None):
-        """ draw turn circles for player. left circle yellowish, right circle light blue
-        """
-        if turn_radius is None:
-            turn_radius = self.min_turn_radius
+    # Drawing Utilities -----------------------
+    # each function should call the corresponding functions of the attached PlayerActor, if defined
+    def draw(self, surface):
+        if self.actor is not None:
+            self.actor.draw(surface)
 
-        turn_centers = self.turn_centers(turn_radius)
+    def draw_debug_info(self, surface):
+        if self.actor is not None:
+            self.actor.draw_debug_info(surface)
 
-        # left turn circle
-        pygame.draw.circle(surface, pygame.Color("goldenrod"), turn_centers['left'], turn_radius, width=1)
-
-        # left turn circle
-        pygame.draw.circle(surface, pygame.Color("deepskyblue"), turn_centers['right'], turn_radius, width=1)
-
+    def draw_turn_circles(self, surface, turn_radius:float):
+        if self.actor is not None:
+            self.actor.draw_turn_circles(surface, turn_radius)
