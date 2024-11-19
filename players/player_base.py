@@ -118,6 +118,7 @@ class Player(pygame.sprite.Sprite):
         return self.dist_to_next_hole <= 0.0
 
     def apply_steering(self, pressed_keys):
+        # note: this function should only be called once per tick for all regular players
         if pressed_keys[self.steer_left_key]:
             logger.debug(f"{self} steering to the left")
             self.angle -= self.dphi_per_tick
@@ -164,7 +165,7 @@ class Player(pygame.sprite.Sprite):
         self.trail.pop(-1)
         self.dist_travelled -= self.dist_per_tick
         self.total_reward -= self.dist_per_tick
-        self.dist_to_next_hole -= self.dist_per_tick
+        self.dist_to_next_hole += self.dist_per_tick
 
 
     def draw(self, surface):

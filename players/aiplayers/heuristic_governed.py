@@ -2,13 +2,12 @@ import copy
 import itertools
 import logging
 import time
-from sqlite3 import NotSupportedError
 
 import matplotlib.pyplot as plt
 import pygame
 import numpy as np
 from players.player_base import PlayerAction, Player
-from players.dummy_player import DummyPlayer
+from players.misc_players import DummyPlayer
 from players.aiplayers.aiplayer_base import AIPlayer
 
 import shapely
@@ -273,14 +272,14 @@ class NStepPlanPlayer(AIPlayer):
         elif num_best_plans == 1:
             best_plan = best_plans[0]
         else:
-            logging.debug(f"Found {num_best_plans} equally good plans, selecting one at random")
+            logging.debug(f"{self}: found {num_best_plans} equally good plans, selecting one at random")
             best_plan = best_plans[np.random.randint(0,num_best_plans)]
 
         self.best_trails = best_trails
         self.best_plan_score = best_plan_score
         self.collidable_trails = collidable_trails
 
-        logging.debug(f"Updated N-step plan (score {best_plan_score:.1f}) is: {[s.value for s in best_plan]}")
+        logging.debug(f"{self}: Updated N-step plan (score {best_plan_score:.1f}) is: {[s.value for s in best_plan]}")
 
         return best_plan
 

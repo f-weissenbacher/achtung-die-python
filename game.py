@@ -17,6 +17,7 @@ from math import pi,sqrt, asin
 from players.player_base import Player, ReasonOfDeath
 from players.human_player import HumanPlayer
 from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
+from players.misc_players import ScriptedPlayer, FixedActionListPlayer
 
 # Define the enemy object by extending pygame.sprite.Sprite
 
@@ -59,7 +60,9 @@ class AchtungDieKurveGame:
 
     bg_color = pygame.Color(30,30,30)
 
-    def __init__(self, mode="gui", target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
+    supported_game_modes = ["gui", "gui-debug", "headless"]
+
+    def __init__(self, mode="gui", target_fps=30., game_speed_factor=1.0, run_until_last_player_dies=False,
                  wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
                  survival_reward=100., ignore_self_collisions=False, rng_seed=None):
         """
@@ -78,15 +81,23 @@ class AchtungDieKurveGame:
             np.random.seed(rng_seed)
         self._rng_seed = rng_seed
 
+
         if mode in ["gui", "gui-debug", "headless"]:
             self.mode = mode
+        else:
+            raise ValueError(f"Invalid value '{mode}' selected for game mode. Supported are: {AchtungDieKurveGame.supported_game_modes}.")
+
+        if self.mode == 'headless':
+            self.fps_locked = False
+        else:
+            self.fps_locked = True
 
         self.running = False
         self.paused = False
         self.screen_width = 800
         self.screen_height = 600
         self.min_turn_radius = 0.05 * self.screen_width # minimum turn radius in pixels
-        self.spawn_safety_distance = 0.5 * self.min_turn_radius
+        self.spawn_safety_distance = 0.75 * self.min_turn_radius
         #self.min_turn_radius = 100  # minimum turn radius in pixels
         self.player_speed = game_speed_factor * 0.075 * self.screen_width # pixels travelled per second of game time
         self.player_radius = 2.0
@@ -116,13 +127,20 @@ class AchtungDieKurveGame:
         # Initialize pygame
         pygame.init()
         # Fonts
-        self.font = pygame.freetype.SysFont(pygame.freetype.get_default_font(), size=28)
+        self.font = pygame.freetype.SysFont(pygame.freetype.get_default_font(), size=22)
         #self.font = pygame.font.SysFont("Arial", size=30)
 
         # Create the screen object
         # The size is determined by the constant SCREEN_WIDTH and SCREEN_HEIGHT
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        flags = pygame.HWSURFACE | pygame.SCALED
+        if self.mode == 'headless':
+            flags |= pygame.HIDDEN
+        else:
+            flags |= pygame.SHOWN
+
+        self.screen = pygame.display.set_mode(size=(self.screen_width, self.screen_height), flags=flags)
         self.screen.fill(self.bg_color)
+
         # Setup game clock
         self.clock = pygame.time.Clock()
 
@@ -198,6 +216,13 @@ class AchtungDieKurveGame:
             if 'name' not in kwargs:
                 kwargs['name'] = 'Unnamed'
             p = HumanPlayer(name=kwargs['name'], **player_kwargs)
+        elif issubclass(player_type, ScriptedPlayer):
+            scripted_player_kwargs = player_kwargs
+            scripted_player_kwargs.update(kwargs)
+            if player_type == FixedActionListPlayer:
+                p = FixedActionListPlayer(**scripted_player_kwargs)
+            else:
+                raise ValueError(f"Invalid scripted player type {player_type}")
         elif issubclass(player_type, AIPlayer):
             aiplayer_kwargs = player_kwargs
             aiplayer_kwargs.update(kwargs)
@@ -244,14 +269,6 @@ class AchtungDieKurveGame:
 
     # TODO: implement external tick control
 
-    #def tick(self):
-    #    """Advance game by one tick == frame"""
-    #
-    #    running = True
-    #
-    #    return running
-
-
     def initialize_players(self, player_ids, positions=None):
         if positions is None:
             positions = dict()
@@ -280,6 +297,7 @@ class AchtungDieKurveGame:
 
         timing = {'coll_checks':0., 'draw':0., 'draw_dbg':0.}
 
+        # NOTE: parallelize this?
         for p in self.active_players:
             # Process player input
             p.apply_steering(pressed_keys)
@@ -418,8 +436,9 @@ class AchtungDieKurveGame:
         # Variable to keep the main loop running
         self.running = True
         closed_by_user = False
-        # Main loop
+        # Main game loop
         while self.running:
+            ft_t0 = time.time() # frame time timer
             timing = {}
             # Look at every event in the queue
             for event in pygame.event.get():
@@ -436,6 +455,7 @@ class AchtungDieKurveGame:
                     closed_by_user = True
 
             if self.paused:
+                # avoid looping too fast while paused
                 time.sleep(1/self.target_fps)
                 continue
 
@@ -449,6 +469,7 @@ class AchtungDieKurveGame:
                 self.draw_wall_zones()
                 timing['draw_dbg'] = time.time() - t0
 
+            # Advance game state by one tick
             tf_timing = self.tick_forward()
             timing.update(tf_timing)
 
@@ -458,17 +479,23 @@ class AchtungDieKurveGame:
                 pygame.display.flip()
             timing['draw'] += time.time() - t0
 
-            self.timing_stats.append(timing)
+            if self.fps_locked:
+                # Ensure program maintains a target FPS
+                self.clock.tick(self.target_fps)
+            else:
+                self.clock.tick() # used in headless mode
 
-            # Ensure program maintains a rate of 30 frames per second
-            self.clock.tick(self.target_fps)
+            # frame time: source of FPS calculation
+            timing['frame_time'] = time.time() - ft_t0
+            self.timing_stats.append(timing)
 
         # game has finished
         if self.mode == "gui" and self.winner is not None:
             self.show_win_message()
 
         if close_when_finished:
-            pygame.time.wait(1200)
+            if self.mode != 'headless':
+                pygame.time.wait(1200)
             self.quit()
         else:
             self.wait_for_window_close()
@@ -509,35 +536,50 @@ class AchtungDieKurveGame:
                 logging.info("Game window was closed by user")
                 self.quit()
 
+
     def print_scoreboard(self, pretty=True):
         if pretty:
             sb_dict = {}
             for p in self.players:
-                sb_dict[p.idx] = {'Name': str(p), 'Score': self.scoreboard[p.idx], 'Distance travelled': p.dist_travelled,
+                sb_dict[p.idx] = {'Name': str(p), 'Score': self.scoreboard[p.idx], 'Distance': p.dist_travelled,
                                   'Total Reward': p.total_reward}
 
             scoreboard = pd.DataFrame.from_dict(sb_dict, orient='index')
             scoreboard.sort_values(by='Score', inplace=True, ascending=False)
             scoreboard = scoreboard.reset_index(drop=True)
             scoreboard.index += 1
-            scoreboard_txt = str(scoreboard)
+            with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+                scoreboard_txt = str(scoreboard)
+
             line_width = scoreboard_txt.index('\n')
-            scoreboard_txt = "\n".join(scoreboard_txt.splitlines()[:-2])
+            scoreboard_txt = "\n".join(scoreboard_txt.splitlines())
             #print(line_width)
             print("---- Scoreboard " + "-" * max([0, line_width-16]))
             print(scoreboard_txt)
         else:
             print(self.scoreboard)
 
+
     def print_timing_stats(self):
         timing_history = pd.DataFrame.from_records(self.timing_stats)
-        timing_history['total'] = timing_history.sum(axis=1)
-        average_times = timing_history.mean(axis=0) * 1000.
-        average_times.sort_values(ascending=False, inplace=True)
-        print("---- Computation Time [ms] per Frame (avg)")
-        print("\n".join(str(average_times).splitlines()[:-1]))
-        #print(timing_history)
 
+        avg_fps_frametime = 1 / timing_history.frame_time.mean()
+
+        timing_history.drop('frame_time',axis='columns', inplace=True)
+        timing_history['total'] = timing_history.sum(axis=1)
+        average_times = timing_history.mean(axis=0)
+        average_times.sort_values(ascending=False, inplace=True)
+
+        avg_fps_total = 1 / average_times.total
+
+        print("---- Computation Time [ms] per Frame (avg) ----")
+        print("\n".join(str(average_times * 1000.).splitlines()[:-1]))
+        if self.fps_locked:
+            print(f"---- Average FPS (FPS locked, Target: {self.target_fps:.1f}) ----")
+        else:
+            print("---- Average FPS (FPS not locked) ----")
+        print(f"FPS (based on timing total): {avg_fps_total:6.1f}")
+        print(f"FPS (based on frame time):   {avg_fps_frametime:6.1f} ")
 
 
     def quit(self, force=False):
@@ -555,6 +597,17 @@ class AchtungDieKurveGame:
         pygame.display.quit()
         pygame.quit()
 
+
+    def save_state_to_file(self, fp:str):
+        data = {'scoreboard': self.scoreboard, 'trails': {p.idx: p.trail for p in self.players}}
+
+        if fp.endswith('.pkl'):
+            import pickle as pkl
+            with open(fp, 'wb') as f:
+                pkl.dump(data, f)
+
+        else:
+            raise NotImplementedError
 
 
 
