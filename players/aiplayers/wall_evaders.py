@@ -1,20 +1,25 @@
+from numpy.ma.core import shape
+
 from players.aiplayers.aiplayer_base import *
+
+import shapely
 
 class WallAvoidingAIPlayer(AIPlayer):
     def __init__(self,  min_turn_radius, safety_factor=1.05, **aiplayer_kwargs):
         super().__init__(**aiplayer_kwargs)
         #self.min_turn_radius = min_turn_radius
         self.turn_radius = min_turn_radius * safety_factor
-        self.center_rect = pygame.rect.Rect(self.xmin + 2*self.turn_radius, self.ymin + 2*self.turn_radius,
-                                            (self.xmax - self.xmin) - 4*self.turn_radius,
-                                            (self.ymax - self.ymin) - 4*self.turn_radius)
+        x1,y1 = [self.xmin + 2*self.turn_radius, self.ymin + 2*self.turn_radius]
+        x2,y2 = [self.xmax - self.xmin - 4*self.turn_radius, (self.ymax - self.ymin) - 4*self.turn_radius]
+
+        self.center_rect = shapely.Polygon([[x1, y1], [x2,y1], [x2,y2], [x1,y2]])
 
 
     def __str__(self):
         return f"WallAvoidingAIPlayer '{self.name}' ({self.color_name})"
 
     def next_action(self, game_state):
-        if self.center_rect.collidepoint(*self.pos):
+        if self.center_rect.contains(shapely.Point(*self.pos)):
             return PlayerAction.KeepStraight
 
         possible_actions = self.wall_evasion_actions(self.turn_radius)

@@ -1,8 +1,5 @@
 from enum import IntEnum
 
-from players.player_actor import PlayerActor
-
-
 class PlayerAction(IntEnum):
     SteerLeft = -1
     KeepStraight = 0
@@ -32,7 +29,7 @@ class Player:
     def __init__(self, idx=1, name=None, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01, radius=2,
                  color=(255, 10, 10), color_name="Red", steer_left_key=1073741904, steer_right_key=1073741905,
                  hole_width=3.0, startblock_length=100., min_dist_between_holes=200., max_dist_between_holes=1500.,
-                 attach_actor=False):
+                 actor=None):
         """
         Base class for Achtung,die Kurve players
 
@@ -64,9 +61,7 @@ class Player:
         else:
             self.name = name
 
-        self.actor = None
-        if attach_actor:
-            self.attach_actor()
+        self.actor = actor
 
         self.pos = np.array(init_pos, dtype=float)  # x-position in game world (pixel coordinates)
         self.dist_per_tick = dist_per_tick
@@ -116,10 +111,6 @@ class Player:
     @property
     def active_hole(self):
         return self.dist_to_next_hole <= 0.0
-
-    def attach_actor(self):
-        if self.actor is None:
-            self.actor = PlayerActor(self)
 
     def apply_steering(self, pressed_keys):
         # note: this function should only be called once per tick for all regular players
@@ -213,7 +204,7 @@ class Player:
 
         turn_centers = {}
         for turn_dir in ["left", "right"]:
-            # Vector from halfpoint between current and previous position to center of turning circle
+            # Vector from half-point between current and previous position to center of turning circle
             if turn_dir == "left":
                 w_vec = w * np.array([np.cos(self.angle - np.pi / 2), np.sin(self.angle - np.pi / 2)])
             else:

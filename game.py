@@ -14,6 +14,7 @@ import pygame.freetype  # Import the freetype module.
 import numpy as np
 from math import pi,sqrt, asin
 
+from players.player_actor import PlayerActor
 from players.player_base import Player, ReasonOfDeath
 from players.human_player import HumanPlayer
 from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
@@ -245,6 +246,10 @@ class AchtungDieKurveGame:
 
         self.players.append(p)
         self.active_players.append(p)
+
+        if "gui" in self.mode:
+            # Attach actor to player
+            p.actor = PlayerActor(p)
 
         return p
 

@@ -12,11 +12,19 @@ class PlayerActor(pygame.sprite.Sprite):
         super(PlayerActor, self).__init__()
 
         self.player = player
+        #self._attach_to_player()
         self.color = self.player.color
 
         self.brush = pygame.Surface((2 * self.player.radius, 2 * self.player.radius))
-        pygame.draw.circle(self.brush, self.player.color, (self.player.radius, self.player.radius), self.radius, 0)
+        pygame.draw.circle(self.brush, self.player.color, (self.player.radius, self.player.radius), self.player.radius, 0)
         self.brush.set_colorkey((0, 0, 0), RLEACCEL)  # set transparent color
+
+
+    # def _attach_to_player(self):
+    #     self.player.actor = self
+    #
+    # def _detach_from_player(self):
+    #     self.player.actor = None
 
 
     def draw(self, surface):
