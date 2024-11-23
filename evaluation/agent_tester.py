@@ -17,7 +17,7 @@ def execute_single_run(game_settings, agent_under_test:dict, opponent_settings:l
     #player_type = agent_under_test.pop('class')
     game.spawn_player(1, player_type=agent_under_test['type'], name="Agent under Test", **agent_under_test['kwargs'])
 
-    max_idx = min(max(AchtungDieKurveGame.valid_player_indices), len(opponent_settings)+1)
+    max_idx = min(max(AchtungDieKurveGame.valid_player_ids), len(opponent_settings) + 1)
     for k, idx in enumerate(range(2, max_idx+1)):
         game.spawn_player(idx, player_type=opponent_settings[k]['type'], **opponent_settings[k]['kwargs'])
 

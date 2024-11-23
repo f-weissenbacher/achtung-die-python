@@ -27,9 +27,8 @@ logger = logging.getLogger(__name__)
 
 class Player:
     def __init__(self, idx=1, name=None, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01, radius=2,
-                 color=(255, 10, 10), color_name="Red", steer_left_key=1073741904, steer_right_key=1073741905,
-                 hole_width=3.0, startblock_length=100., min_dist_between_holes=200., max_dist_between_holes=1500.,
-                 actor=None):
+                 color=(255, 10, 10), color_name="Red", hole_width=3.0, startblock_length=100.,
+                 min_dist_between_holes=200., max_dist_between_holes=1500., actor=None):
         """
         Base class for Achtung,die Kurve players
 
@@ -46,8 +45,6 @@ class Player:
             dphi_per_tick:
             color:
             color_name:
-            steer_left_key:
-            steer_right_key:
             hole_width: width of trail holes in multiples of player diameter
             startblock_length:
             min_dist_between_holes:
@@ -71,8 +68,6 @@ class Player:
         self.dist_travelled = 0.0  # total distance travelled
         self.total_reward = 0.0 # sum of all rewards, collected by staying alive; collisions add penalties
         self.angle = init_angle  # angle of velocity vector
-        self.steer_left_key = steer_left_key
-        self.steer_right_key = steer_right_key
         self.color = color
         self.color_name = color_name
         # self.score = 0 # Number of points earned by staying alive

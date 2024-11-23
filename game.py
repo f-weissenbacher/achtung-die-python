@@ -8,12 +8,13 @@ import sys
 import time
 
 import pandas as pd
-import pygame
-import pygame.freetype  # Import the freetype module.
 
 import numpy as np
 from math import pi,sqrt, asin
 
+from collections import defaultdict
+
+from gui import AchtungDieKurveGUI
 from players.player_actor import PlayerActor
 from players.player_base import Player, ReasonOfDeath, PlayerAction
 from players.human_player import HumanPlayer
@@ -37,37 +38,17 @@ class AchtungDieKurveGame:
     Y       z-axis points down into screen
     """
 
-    valid_player_indices = [0, 1, 2, 3, 4, 5, 6]
-
-    player_keys = {0: {'left': pygame.K_F1, 'right': pygame.K_F2}, # virtual player
-                   1: {'left': pygame.K_1, 'right': pygame.K_q},
-                   2: {'left': pygame.K_x, 'right': pygame.K_c},
-                   3: {'left': pygame.K_m, 'right': pygame.K_COMMA},
-                   4: {'left': pygame.K_LEFT, 'right': pygame.K_DOWN},
-                   5: {'left': pygame.K_KP_DIVIDE, 'right': pygame.K_KP_MULTIPLY},
-                   6: {'left': pygame.K_KP0, 'right': pygame.K_KP_PERIOD},
-                   }
-
-    #player_ = {0: "Gray", 1: "Red", 2: "Yellow", 3: "Orange", 4: "Green", 5: "Magenta", 6: "Blue"}
-
-    player_colors = {0: ("Gray", pygame.Color('gray')),   # virtual player
-                     1: ("Red", pygame.Color("red")),
-                     2: ("Yellow", pygame.Color("yellow")),
-                     3: ("Orange", pygame.Color("orange")),
-                     4: ("Green", pygame.Color("lime")),
-                     5: ("Magenta", pygame.Color("magenta")),
-                     6: ("Blue", pygame.Color("turquoise1")),
-                     }
-
-    bg_color = pygame.Color(30,30,30)
+    valid_player_ids = [0, 1, 2, 3, 4, 5, 6]
 
     supported_game_modes = ["gui", "gui-debug", "headless"]
+
+    screen_width = 800
+    screen_height = 600
 
     def __init__(self, mode="gui", target_fps=30., game_speed_factor=1.0, run_until_last_player_dies=False,
                  wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
                  survival_reward=100., ignore_self_collisions=False, rng_seed=None):
         """
-
         Args:
             target_fps (float):
             game_speed_factor (float):
@@ -82,21 +63,13 @@ class AchtungDieKurveGame:
             np.random.seed(rng_seed)
         self._rng_seed = rng_seed
 
-
         if mode in ["gui", "gui-debug", "headless"]:
             self.mode = mode
         else:
             raise ValueError(f"Invalid value '{mode}' selected for game mode. Supported are: {AchtungDieKurveGame.supported_game_modes}.")
 
-        if self.mode == 'headless':
-            self.fps_locked = False
-        else:
-            self.fps_locked = True
-
         self.running = False
         self.paused = False
-        self.screen_width = 800
-        self.screen_height = 600
         self.min_turn_radius = 0.05 * self.screen_width # minimum turn radius in pixels
         self.spawn_safety_distance = 0.75 * self.min_turn_radius
         #self.min_turn_radius = 100  # minimum turn radius in pixels
@@ -119,31 +92,11 @@ class AchtungDieKurveGame:
         self.active_players = []
         self.winner = None
         # Scoring
-        self.scoreboard = {idx:0 for idx in AchtungDieKurveGame.player_keys}
+        self.scoreboard = {idx:0 for idx in AchtungDieKurveGame.valid_player_ids}
         self.wall_collision_penalty = wall_collision_penalty   # subtracted from rewards in case of wall collision
         self.self_collision_penalty = self_collision_penalty   # subtracted from rewards in case of self collision
         self.player_collision_penalty = player_collision_penalty  # subtracted from rewards in case of collision with opponent
         self.survival_reward = survival_reward  # reward for surviving longer than an opponent (awarded when opponent dies)
-
-        # Initialize pygame
-        pygame.init()
-        # Fonts
-        self.font = pygame.freetype.SysFont(pygame.freetype.get_default_font(), size=22)
-        #self.font = pygame.font.SysFont("Arial", size=30)
-
-        # Create the screen object
-        # The size is determined by the constant SCREEN_WIDTH and SCREEN_HEIGHT
-        flags = pygame.HWSURFACE | pygame.SCALED
-        if self.mode == 'headless':
-            flags |= pygame.HIDDEN
-        else:
-            flags |= pygame.SHOWN
-
-        self.screen = pygame.display.set_mode(size=(self.screen_width, self.screen_height), flags=flags)
-        self.screen.fill(self.bg_color)
-
-        # Setup game clock
-        self.clock = pygame.time.Clock()
 
         # Debug flags
         self.run_until_last_player_dies = run_until_last_player_dies
@@ -154,10 +107,19 @@ class AchtungDieKurveGame:
 
         colorama.init()
 
+        # Spawn GUI unless in headless mode
+        if self.mode == 'headless':
+            self.fps_locked = False
+            self.gui = None
+        else:
+            # Enable GUI. Spawn game window
+            self.fps_locked = True
+            self.gui = AchtungDieKurveGUI(self)
+
 
     @staticmethod
     def _roll_random_angle():
-        return 2*pi*random.random()
+        return 2*pi*np.random.rand()
 
     def _roll_valid_start_position(self, max_attempts=100):
         attempt_counter = 0
@@ -177,13 +139,16 @@ class AchtungDieKurveGame:
 
         raise RuntimeError("Unable to generate valid start position!")
 
+    @property
+    def gui_enabled(self):
+        return self.gui is not None
 
     def detect_wall_collision(self, player:Player):
         x,y = player.pos
         return x < self.game_bounds[0] or x > self.game_bounds[1] or y < self.game_bounds[2] or y > self.game_bounds[3]
 
     def spawn_player(self, idx, init_pos=None, init_angle=None, player_type=Player, **kwargs):
-        assert idx in self.valid_player_indices
+        assert idx in self.valid_player_ids
 
         if idx in [p.idx for p in self.players]:
             raise ValueError(f"Player {idx} already exists")
@@ -194,22 +159,11 @@ class AchtungDieKurveGame:
         if init_angle is None:
             init_angle = self._roll_random_angle()
 
-        color_name, color = self.player_colors[idx]
-
-        if not isinstance(color, pygame.Color):
-            # The pygame.Color constructor accepts:
-            # - a pygame.Color
-            # - the name of a color in pygame.colordict.THECOLORS
-            # - a RGB tuple
-            color = pygame.Color(color)
 
         player_kwargs = dict(idx=idx, init_pos=init_pos, init_angle=init_angle,
                              dist_per_tick=self.dist_per_tick,
                              dphi_per_tick=self.dphi_per_tick,
-                             steer_left_key=self.player_keys[idx]['left'],
-                             steer_right_key=self.player_keys[idx]['right'],
                              radius=self.player_radius,
-                             color=color, color_name=color_name,
                              )
 
         if player_type == "human" or player_type in [Player,HumanPlayer]:
@@ -246,12 +200,11 @@ class AchtungDieKurveGame:
         self.players.append(p)
         self.active_players.append(p)
 
-        if "gui" in self.mode:
+        if self.gui_enabled:
             # Attach actor to player
             p.actor = PlayerActor(p)
 
         return p
-
 
     def disable_player(self, p, reason:ReasonOfDeath):
         """ Remove player `p` from list of active players but keep its history. Subtracts penalty from that player's
@@ -284,11 +237,11 @@ class AchtungDieKurveGame:
                 self.spawn_player(player_id)
 
 
-    def draw_start_positions(self):
-        for p in self.active_players:
-            p.draw(self.screen)
-
-        pygame.display.flip()
+    # def draw_start_positions(self):
+    #     for p in self.active_players:
+    #         p.draw(self.screen)
+    #
+    #     pygame.display.flip()
 
 
     def move_players(self, actions, draw=True, draw_debug=False):
@@ -352,47 +305,14 @@ class AchtungDieKurveGame:
 
         return game_state
 
+
     def save_game_state(self, fp:str, game_state=None):
         import pickle
         if game_state is None:
             game_state = self.get_game_state()
-        with open(fp,"wb") as f:
-           pickle.dump(game_state, f)
+        with open(fp, "wb") as f:
+            pickle.dump(game_state, f)
 
-    def draw_wall_zones(self):
-        c = pygame.color.Color("cyan")
-        w = 1
-        R = self.min_turn_radius
-        pygame.draw.line(self.screen, c, (0,2*R),(self.screen_width, 2*R), w)
-        pygame.draw.line(self.screen, c, (0, self.screen_height - 2 * R), (self.screen_width, self.screen_height - 2 * R), w)
-        pygame.draw.line(self.screen, c, (2*R,0),(2*R, self.screen_height), w)
-        pygame.draw.line(self.screen, c, (self.screen_width - 2*R,0), (self.screen_width - 2*R, self.screen_height), w)
-
-        c = pygame.color.Color("green")
-        rect = pygame.rect.Rect(R,R,self.screen_width - 2*R, self.screen_height - 2*R)
-        pygame.draw.rect(self.screen, c, rect=rect, width=w)
-
-
-    def draw_debug_info(self):
-        # Draw player info
-        for ap in self.active_players:
-            ap.draw_debug_info(self.screen)
-
-    def parse_human_keypresses(self, pressed_keys):
-        """
-        Parse PlayerActions for human players based on pressed keys.
-        """
-        actions = {}
-        for p in self.active_players:
-            if isinstance(p, HumanPlayer):
-                if pressed_keys[p.steer_left_key]:
-                    actions[p.idx] = PlayerAction.SteerLeft
-                elif pressed_keys[p.steer_right_key]:
-                    actions[p.idx] = PlayerAction.SteerRight
-                else:
-                    actions[p.idx] = PlayerAction.KeepStraight
-
-        return actions
 
     def tick_forward(self):
         """
@@ -403,11 +323,11 @@ class AchtungDieKurveGame:
         self.current_frame += 1
         logging.debug(f">==== Frame {self.current_frame:d} ===============")
 
-        # Query key presses
-        pressed_keys = pygame.key.get_pressed()
+        actions = defaultdict(lambda: PlayerAction.KeepStraight)
 
-        # Start by parsing actions of human players from pressed keys
-        actions = self.parse_human_keypresses(pressed_keys)
+        # Get inputs from human players from GUI
+        if self.gui_enabled():
+            human_actions = self.gui
 
         # Query AI-players for steering actions
         t0_ai = time.time()
@@ -529,42 +449,6 @@ class AchtungDieKurveGame:
             self.wait_for_window_close()
 
 
-    def show_win_message(self):
-        win_msg = f"{self.winner} won!"
-        logging.info(win_msg)
-        self.font.render_to(self.screen, (int(0.25 * self.screen_width), int(0.5 * self.screen_height)),
-                            text=win_msg, fgcolor=self.winner.color, bgcolor=self.bg_color)
-        pygame.display.flip()
-        #self.running = False
-
-    def flush_display(self, wall_zones=True):
-        if wall_zones:
-            self.draw_wall_zones()
-
-        pygame.display.flip()
-
-
-    def wait_for_window_close(self):
-        # Main loop
-        wait_for_close = True
-        while wait_for_close:
-            # Look at every event in the queue
-            for event in pygame.event.get():
-                # Did the user hit a key?
-                if event.type == pygame.KEYDOWN:
-                    # Was it the Escape key? If so, stop the loop.
-                    if event.key == pygame.K_ESCAPE:
-                        wait_for_close = False
-
-                # Did the user click the window close button? If so, stop the loop.
-                elif event.type == pygame.QUIT:
-                    wait_for_close = False
-
-            if wait_for_close is False:
-                logging.info("Game window was closed by user")
-                self.quit()
-
-
     def print_scoreboard(self, pretty=True):
         if pretty:
             sb_dict = {}
@@ -608,22 +492,6 @@ class AchtungDieKurveGame:
             print("---- Average FPS (FPS not locked) ----")
         print(f"FPS (based on timing total): {avg_fps_total:6.1f}")
         print(f"FPS (based on frame time):   {avg_fps_frametime:6.1f} ")
-
-
-    def quit(self, force=False):
-        if self.running:
-            if force:
-                logging.warning("Forced 'quit()' was called on game that is still running")
-            else:
-                logging.warning("Ignoring attempt to quit() called on game that is still running. If you really want to quit "
-                                "the game while running==True, use `game.quit(force=True)`.")
-                return
-        else:
-            logging.info("Closing game")
-
-        # Unwind pygame engine
-        pygame.display.quit()
-        pygame.quit()
 
 
     def save_state_to_file(self, fp:str):
