@@ -21,11 +21,11 @@ game = AchtungDieKurveGame(mode="gui", target_fps=30)
 dist_per_step = 50.
 ticks_per_step = int(dist_per_step/game.dist_per_tick)
 plan_update_period = int(0.15*ticks_per_step)
-for k in range(1,2):
+for k in range(1,3):
     game.spawn_player(k, player_type=NStepPlanPlayer, name=None, num_steps=3, dist_per_step=dist_per_step,
                       plan_update_period=plan_update_period)
 
-for k in range(2,7):
+for k in range(3,7):
     game.spawn_player(k, player_type=RandomSteeringAIPlayer)
 
 game.run_game_loop(close_when_finished=True)

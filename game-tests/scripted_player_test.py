@@ -27,17 +27,17 @@ def discretize_movement_plan(plan, game:AchtungDieKurveGame):
 logging.basicConfig(level=logging.DEBUG,
                     format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")
 
-game = AchtungDieKurveGame(target_fps=20, game_speed_factor=1.0, run_until_last_player_dies=True)
+game = AchtungDieKurveGame(mode="gui-debug", target_fps=20., game_speed_factor=1.0, run_until_last_player_dies=True)
 
 start_pos = (100,100)
 start_angle = 0.0
 
 #action_list = [PlayerAction.KeepStraight]*20 + [PlayerAction.SteerRight]*15 + [PlayerAction.KeepStraight]*10 + [PlayerAction.SteerLeft]*25
 
-trajectory_plan = [(PlayerAction.KeepStraight, 200),
+trajectory_plan = [(PlayerAction.KeepStraight, 300),
                    (PlayerAction.SteerRight, 90.),
                    (PlayerAction.KeepStraight, 50.),
-                   (PlayerAction.SteerRight, 60.)]
+                   (PlayerAction.SteerLeft, 60.)]
 
 action_list = discretize_movement_plan(trajectory_plan, game)
 

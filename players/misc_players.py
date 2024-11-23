@@ -8,10 +8,6 @@ class ScriptedPlayer(Player):
     def __init__(self, **player_kwargs):
         super().__init__(**player_kwargs)
 
-    def apply_steering(self, pressed_keys):
-        # Child classes need to define steering
-        pass
-
     def apply_action(self, action):
         if action == PlayerAction.SteerLeft:
             self.steer_left()
@@ -23,6 +19,9 @@ class ScriptedPlayer(Player):
 
     def steer_right(self):
         self.angle += self.dphi_per_tick
+
+    def query_steering(self):
+        return PlayerAction.KeepStraight
 
 
 class DummyPlayer(ScriptedPlayer):
@@ -52,14 +51,13 @@ class FixedActionListPlayer(ScriptedPlayer):
         self.list_length = len(action_list)
         self.action_idx = 0
 
-    def apply_steering(self, pressed_keys):
+    def query_steering(self):
         # Get action from list based on current action_idx
         action = self.action_list[self.action_idx]
-
-        # Perform steering
-        self.apply_action(action)
-
         # Increment action_idx (loop back if necessary!)
         self.action_idx = (self.action_idx + 1) % self.list_length
+        return action
+
+
 
 

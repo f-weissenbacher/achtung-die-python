@@ -112,12 +112,12 @@ class Player:
     def active_hole(self):
         return self.dist_to_next_hole <= 0.0
 
-    def apply_steering(self, pressed_keys):
+    def apply_steering(self, action:PlayerAction):
         # note: this function should only be called once per tick for all regular players
-        if pressed_keys[self.steer_left_key]:
+        if action == PlayerAction.SteerLeft:
             logger.debug(f"{self} steering to the left")
             self.angle -= self.dphi_per_tick
-        elif pressed_keys[self.steer_right_key]:
+        elif action == PlayerAction.SteerRight:
             logger.debug(f"{self} steering to the right")
             self.angle += self.dphi_per_tick
 

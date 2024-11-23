@@ -15,7 +15,7 @@ import numpy as np
 from math import pi,sqrt, asin
 
 from players.player_actor import PlayerActor
-from players.player_base import Player, ReasonOfDeath
+from players.player_base import Player, ReasonOfDeath, PlayerAction
 from players.human_player import HumanPlayer
 from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
 from players.misc_players import ScriptedPlayer, FixedActionListPlayer
@@ -178,7 +178,6 @@ class AchtungDieKurveGame:
         raise RuntimeError("Unable to generate valid start position!")
 
 
-
     def detect_wall_collision(self, player:Player):
         x,y = player.pos
         return x < self.game_bounds[0] or x > self.game_bounds[1] or y < self.game_bounds[2] or y > self.game_bounds[3]
@@ -292,7 +291,7 @@ class AchtungDieKurveGame:
         pygame.display.flip()
 
 
-    def move_players(self, pressed_keys, draw=True, draw_debug=False):
+    def move_players(self, actions, draw=True, draw_debug=False):
         """ Advance players by one tick/frame
 
         Returns: timing information
@@ -305,7 +304,7 @@ class AchtungDieKurveGame:
         # NOTE: parallelize this?
         for p in self.active_players:
             # Process player input
-            p.apply_steering(pressed_keys)
+            p.apply_steering(actions[p.idx])
             # Update player positions
             p.move()
             # Draw player at its current position
@@ -379,6 +378,22 @@ class AchtungDieKurveGame:
         for ap in self.active_players:
             ap.draw_debug_info(self.screen)
 
+    def parse_human_keypresses(self, pressed_keys):
+        """
+        Parse PlayerActions for human players based on pressed keys.
+        """
+        actions = {}
+        for p in self.active_players:
+            if isinstance(p, HumanPlayer):
+                if pressed_keys[p.steer_left_key]:
+                    actions[p.idx] = PlayerAction.SteerLeft
+                elif pressed_keys[p.steer_right_key]:
+                    actions[p.idx] = PlayerAction.SteerRight
+                else:
+                    actions[p.idx] = PlayerAction.KeepStraight
+
+        return actions
+
     def tick_forward(self):
         """
         Advance game state by one tick
@@ -388,24 +403,32 @@ class AchtungDieKurveGame:
         self.current_frame += 1
         logging.debug(f">==== Frame {self.current_frame:d} ===============")
 
-        # Get key presses
+        # Query key presses
         pressed_keys = pygame.key.get_pressed()
 
-        # Query AI-players for steering input
+        # Start by parsing actions of human players from pressed keys
+        actions = self.parse_human_keypresses(pressed_keys)
+
+        # Query AI-players for steering actions
         t0_ai = time.time()
         game_state = self.get_game_state()
         for ap in self.active_players:
             if isinstance(ap, AIPlayer):
-                steering = ap.get_keypresses(game_state=game_state)
-                ap.apply_steering(steering)
+                actions[ap.idx] = ap.next_action(game_state=game_state)
+
         dt_ai = time.time() - t0_ai
 
+        for sp in self.active_players:
+            if isinstance(sp, ScriptedPlayer):
+                actions[sp.idx] = sp.query_steering()
+
+
         if self.mode == "gui":
-            timing = self.move_players(pressed_keys, draw=True, draw_debug=False)
+            timing = self.move_players(actions, draw=True, draw_debug=False)
         elif self.mode == "gui-debug":
-            timing = self.move_players(pressed_keys, draw=True, draw_debug=True)
+            timing = self.move_players(actions, draw=True, draw_debug=True)
         else:
-            timing = self.move_players(pressed_keys, draw=False, draw_debug=False)
+            timing = self.move_players(actions, draw=False, draw_debug=False)
 
         timing['ai'] = dt_ai
 
@@ -612,7 +635,7 @@ class AchtungDieKurveGame:
                 pkl.dump(data, f)
 
         else:
-            raise NotImplementedError
+            raise NotImplementedError()
 
 
 
