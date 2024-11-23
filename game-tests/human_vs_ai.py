@@ -37,7 +37,7 @@ elif enemy_ai_type == "n-step":
     for idx in [1, 2]:
         game.spawn_player(idx, init_pos=(random.randrange(50, 750), random.randrange(50, 550)),
                           init_angle=random.random() * 2 * np.pi,
-                          player_type=NStepPlanPlayer, )
+                          player_type=NStepPlanPlayer, num_steps=2)
 
 #game.running = True
 # while game.running:
