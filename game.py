@@ -1,6 +1,5 @@
 # Import the pygame module
 import logging
-import random
 
 # Import pygame.locals for easier access to key coordinates
 # Updated to conform to flake8 and black standards
@@ -156,13 +155,13 @@ class AchtungDieKurveGame:
 
     @staticmethod
     def _roll_random_angle():
-        return 2*pi*random.random()
+        return 2*pi*np.random.rand()
 
     def _roll_valid_start_position(self, max_attempts=100):
         attempt_counter = 0
         while attempt_counter < max_attempts:
-            x = self.min_turn_radius + (self.screen_width - 2 * self.min_turn_radius) * random.random()
-            y = self.min_turn_radius + (self.screen_height - 2 * self.min_turn_radius) * random.random()
+            x = self.min_turn_radius + (self.screen_width - 2 * self.min_turn_radius) * np.random.rand()
+            y = self.min_turn_radius + (self.screen_height - 2 * self.min_turn_radius) * np.random.rand()
 
             for p in self.players:
                 dist = sqrt((x - p.pos[0])**2 + (y - p.pos[1])**2)
