@@ -16,9 +16,7 @@ class ReasonOfDeath(IntEnum):
     OpponentCollision = 2
 
 
-# Import the pygame module
 import logging
-#import random
 import numpy as np
 
 from math import pi, sin, cos, sqrt, ceil
@@ -28,14 +26,13 @@ logger = logging.getLogger(__name__)
 class Player:
     def __init__(self, idx=1, name=None, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01, radius=2,
                  color=(255, 10, 10), color_name="Red", hole_width=3.0, startblock_length=100.,
-                 min_dist_between_holes=200., max_dist_between_holes=1500., actor=None):
+                 min_dist_between_holes=200., max_dist_between_holes=1500.):
         """
         Base class for Achtung,die Kurve players
 
         Note on pygames coordinate system: origin in top left corner, X points to the right, Y down, Z into the screen
         Therefore, when the angle of a player is increased, its velocity vector rotates in clockwise direction
         (--> the screen is viewed from the negative Z direction!)
-
 
         Args:
             idx:
@@ -58,7 +55,7 @@ class Player:
         else:
             self.name = name
 
-        self.actor = actor
+        self.actor = None
 
         self.pos = np.array(init_pos, dtype=float)  # x-position in game world (pixel coordinates)
         self.dist_per_tick = dist_per_tick

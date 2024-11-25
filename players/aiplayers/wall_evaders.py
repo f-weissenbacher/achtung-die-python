@@ -1,5 +1,3 @@
-from numpy.ma.core import shape
-
 from players.aiplayers.aiplayer_base import *
 
 import shapely

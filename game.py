@@ -1,20 +1,15 @@
-# Import the pygame module
 import logging
 
 # Import pygame.locals for easier access to key coordinates
 # Updated to conform to flake8 and black standards
-import sys
 import time
-
 import pandas as pd
-
 import numpy as np
-from math import pi,sqrt, asin
+from math import pi, sqrt, asin
 
 from collections import defaultdict
 
-from gui import AchtungDieKurveGUI
-from players.player_actor import PlayerActor
+from actors.nstep_player_actor import NStepPlanPlayerActor
 from players.player_base import Player, ReasonOfDeath, PlayerAction
 from players.human_player import HumanPlayer
 from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
@@ -39,6 +34,8 @@ class AchtungDieKurveGame:
 
     valid_player_ids = [0, 1, 2, 3, 4, 5, 6]
 
+    player_color_names = {0:"Gray", 1:"Red", 2:"Yellow", 3:"Orange", 4:"Green", 5:"Magenta", 6:"Blue"}
+
     supported_game_modes = ["gui", "gui-debug", "headless"]
 
     screen_width = 800
@@ -56,7 +53,7 @@ class AchtungDieKurveGame:
             wall_collision_penalty: float
             self_collision_penalty (float):
             ignore_self_collisions (bool):
-            startpos_seed (int):
+            rng_seed (int):
         """
         if rng_seed is not None:
             np.random.seed(rng_seed)
@@ -81,7 +78,7 @@ class AchtungDieKurveGame:
 
         self.target_fps = target_fps
         #dt_per_tick = 1/self.target_fps
-        self.current_frame = -1 # game has not been started yet
+        self.current_frame = -1  # game has not been started yet
         self.dist_per_tick = self.player_speed/self.target_fps # distance travelled by player during 1 tick
         self.dphi_per_tick = 2*asin(self.dist_per_tick/(2*self.min_turn_radius)) # angle change in randians per tick
         #self.player_turn_rate = self.player_speed / self.min_turn_radius # turn rate (radians per second)
@@ -111,6 +108,7 @@ class AchtungDieKurveGame:
             self.fps_locked = False
             self.gui = None
         else:
+            from gui import AchtungDieKurveGUI
             # Enable GUI. Spawn game window
             self.fps_locked = True
             self.gui = AchtungDieKurveGUI(self)
@@ -162,6 +160,7 @@ class AchtungDieKurveGame:
         player_kwargs = dict(idx=idx, init_pos=init_pos, init_angle=init_angle,
                              dist_per_tick=self.dist_per_tick,
                              dphi_per_tick=self.dphi_per_tick,
+                             color_name=self.player_color_names[idx],
                              radius=self.player_radius,
                              )
 
@@ -201,7 +200,12 @@ class AchtungDieKurveGame:
 
         if self.gui_enabled:
             # Attach actor to player
-            p.actor = PlayerActor(p)
+            if isinstance(p, NStepPlanPlayer):
+                from actors.nstep_player_actor import NStepPlanPlayerActor
+                p.actor = NStepPlanPlayerActor(p)
+            else:
+                from actors.player_actor import PlayerActor
+                p.actor = PlayerActor(p)
 
         return p
 
@@ -262,11 +266,11 @@ class AchtungDieKurveGame:
             # Draw player at its current position
             if draw:
                 t0 = time.time()
-                p.draw(self.screen)
+                p.draw(self.gui.screen)
                 timing['draw'] += time.time() - t0
             if draw_debug:
                 t0 = time.time()
-                p.draw_debug_info(self.screen)
+                p.draw_debug_info(self.gui.screen)
                 timing['draw_dbg'] += time.time() - t0
 
             t0 = time.time()
@@ -325,8 +329,9 @@ class AchtungDieKurveGame:
         actions = defaultdict(lambda: PlayerAction.KeepStraight)
 
         # Get inputs from human players from GUI
-        if self.gui_enabled():
-            human_actions = self.gui
+        if self.gui_enabled:
+            human_actions = self.gui.query_human_player_actions()
+            actions.update(human_actions)
 
         # Query AI-players for steering actions
         t0_ai = time.time()
@@ -363,43 +368,27 @@ class AchtungDieKurveGame:
 
 
     def reverse_tick(self):
-        "Step back game by 1 tick"
+        """Step back game by 1 tick"""
 
         for p in self.players:
             p.undo_last_move()
 
-    def toggle_pause(self):
-        self.paused = not self.paused
-        if self.paused:
-            logging.info("Game paused")
+
+    def run_game_loop(self):
+        if self.gui_enabled:
+            self.gui.run_game_loop()
         else:
-            logging.info("Game continued")
+            self.run_headless_game_loop()
 
-    def run_game_loop(self, close_when_finished=True):
-        self.draw_start_positions()
-        # Show Start positions for a short time before starting
-        pygame.time.wait(500)
 
+    def run_headless_game_loop(self):
         # Variable to keep the main loop running
         self.running = True
         closed_by_user = False
         # Main game loop
         while self.running:
-            ft_t0 = time.time() # frame time timer
+            ft_t0 = time.time()  # frame time timer
             timing = {}
-            # Look at every event in the queue
-            for event in pygame.event.get():
-                # Did the user hit a key?
-                if event.type == pygame.KEYDOWN:
-                    # Was it the Escape key? If so, stop the loop.
-                    if event.key == pygame.K_ESCAPE:
-                        closed_by_user = True
-                    if event.key == pygame.K_SPACE:
-                        self.toggle_pause()
-
-                # Did the user click the window close button? If so, stop the loop.
-                elif event.type == pygame.QUIT:
-                    closed_by_user = True
 
             if self.paused:
                 # avoid looping too fast while paused
@@ -411,41 +400,20 @@ class AchtungDieKurveGame:
                 self.running = False
                 self.quit()
 
-            if "debug" in self.mode:
-                t0 = time.time()
-                self.draw_wall_zones()
-                timing['draw_dbg'] = time.time() - t0
-
             # Advance game state by one tick
             tf_timing = self.tick_forward()
             timing.update(tf_timing)
 
-            # Render the display (flip everything to the display)
-            t0 = time.time()
-            if "gui" in self.mode:
-                pygame.display.flip()
-            timing['draw'] += time.time() - t0
-
-            if self.fps_locked:
-                # Ensure program maintains a target FPS
-                self.clock.tick(self.target_fps)
-            else:
-                self.clock.tick() # used in headless mode
-
-            # frame time: source of FPS calculation
             timing['frame_time'] = time.time() - ft_t0
             self.timing_stats.append(timing)
 
-        # game has finished
-        if self.mode == "gui" and self.winner is not None:
-            self.show_win_message()
 
-        if close_when_finished:
-            if self.mode != 'headless':
-                pygame.time.wait(1200)
-            self.quit()
+    def toggle_pause(self):
+        self.paused = not self.paused
+        if self.paused:
+            logging.info("Game paused")
         else:
-            self.wait_for_window_close()
+            logging.info("Game continued")
 
 
     def print_scoreboard(self, pretty=True):
@@ -503,6 +471,10 @@ class AchtungDieKurveGame:
 
         else:
             raise NotImplementedError()
+
+
+    def quit(self):
+        pass
 
 
 

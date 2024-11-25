@@ -1,6 +1,5 @@
 from unittest import TestCase
 
-from develop.predict_trails import dist_per_tick
 from game import AchtungDieKurveGame
 from players import Player
 from players.aiplayers import RandomSteeringAIPlayer

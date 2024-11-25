@@ -4,7 +4,6 @@ import logging
 import time
 
 import matplotlib.pyplot as plt
-import pygame
 import numpy as np
 from players.player_base import PlayerAction, Player
 from players.misc_players import DummyPlayer
@@ -20,7 +19,6 @@ num_update_ticks = 0
 # FIXME: rework or create new function that assumes that path2 is a Polygon
 def distance_to_conflict(path:shapely.LineString, obstacle:shapely.Geometry):
     # dtc == 'distance to conflict'
-
     intersect = path.intersection(obstacle)
 
     dtc = np.inf
@@ -226,7 +224,6 @@ class NStepPlanPlayer(AIPlayer):
                     #     if plan_score < best_plan_score:
                     #         # stop moving dummy player
                     #         break
-
                     #
 
                     if plan_score < best_plan_score:
@@ -298,39 +295,3 @@ class NStepPlanPlayer(AIPlayer):
 
         return plan_score
 
-    def draw_debug_info(self, surface:pygame.Surface):
-        if self.in_planning_tick:
-            cmap = plt.get_cmap("Blues")
-            norm = plt.Normalize(vmin=-5000, vmax=0)
-            self.num_updates += 1
-            dbg_color = pygame.Color('dodgerblue')
-            dbg_color.a = 150
-            pygame.draw.circle(surface=surface, center=self.trail[-2], radius=self.radius+2, color=dbg_color, width=2)
-
-            trails_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-
-            coll_color = copy.copy(self.color)
-            coll_color.a = 60
-
-            #for coll_trail in self.collidable_trails.geoms:
-            #    pygame.draw.polygon(trails_surf, color=coll_color, points=coll_trail.exterior.coords, width=0)
-
-            # DEBUG: Check if trails are correct
-            #plt.figure()
-            #plt.axis('equal')
-            #plt.plot(*self.pos, 'kp')
-            #plt.plot(*np.asarray(self.trail[-3:-1]).T, 'k.-')
-
-            for trail in self.best_trails:
-                #pygame.draw.lines(surface, color=dbg_color, points=trail.coords, closed=False, width=2*self.radius )
-                trail_color = pygame.Color(np.asarray(cmap(norm(self.best_plan_score))) * 255)
-                #print(self.best_plan_score)
-                pygame.draw.aalines(surface, color=trail_color, points=trail.coords, closed=False)
-                #bold_trail = trail.buffer(self.radius).exterior
-                #pygame.draw.polygon(trails_surf, color=dbg_color, points=bold_trail.coords, width=0)
-
-                #plt.plot(*trail.coords.xy, '.-')
-
-            #plt.show(block=True)
-
-            surface.blit(trails_surf, trails_surf.get_rect())

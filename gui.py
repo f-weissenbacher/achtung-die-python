@@ -1,9 +1,10 @@
+import time
+
 import pygame
 import pygame.freetype  # Import the freetype module.
 
 import logging
 
-from game import AchtungDieKurveGame
 from players import HumanPlayer
 from players.player_base import PlayerAction
 
@@ -32,7 +33,7 @@ class AchtungDieKurveGUI:
     bg_color = pygame.Color(30, 30, 30)
 
 
-    def __init__(self, game:AchtungDieKurveGame, start_hidden=False):
+    def __init__(self, game, start_hidden=False):
 
         self.game = game
         self.screen_width = game.screen_width
@@ -81,9 +82,9 @@ class AchtungDieKurveGUI:
         actions = {}
         for p in self.game.active_players:
             if isinstance(p, HumanPlayer):
-                if pressed_keys[p.steer_left_key]:
+                if pressed_keys[self.player_keys[p.idx]['left']]:
                     actions[p.idx] = PlayerAction.SteerLeft
-                elif pressed_keys[p.steer_right_key]:
+                elif pressed_keys[self.player_keys[p.idx]['right']]:
                     actions[p.idx] = PlayerAction.SteerRight
                 else:
                     actions[p.idx] = PlayerAction.KeepStraight
@@ -121,7 +122,6 @@ class AchtungDieKurveGUI:
             ap.draw_debug_info(self.screen)
 
 
-
     def show_win_message(self):
         win_msg = f"{self.game.winner} won!"
         logging.info(win_msg)
@@ -130,11 +130,83 @@ class AchtungDieKurveGUI:
         pygame.display.flip()
         #self.running = False
 
+
     def flush_display(self, wall_zones=True):
         if wall_zones:
             self.draw_wall_zones()
 
         pygame.display.flip()
+
+
+    def run_game_loop(self, close_when_finished=True):
+        self.draw_start_positions()
+        # Show Start positions for a short time before starting
+        pygame.time.wait(500)
+
+        # Variable to keep the main loop running
+        self.game.running = True
+        closed_by_user = False
+        # Main game loop
+        while self.game.running:
+            ft_t0 = time.time() # frame time timer
+            timing = {}
+            # Look at every event in the queue
+            for event in pygame.event.get():
+                # Did the user hit a key?
+                if event.type == pygame.KEYDOWN:
+                    # Was it the Escape key? If so, stop the loop.
+                    if event.key == pygame.K_ESCAPE:
+                        closed_by_user = True
+                    if event.key == pygame.K_SPACE:
+                        self.game.toggle_pause()
+
+                # Did the user click the window close button? If so, stop the loop.
+                elif event.type == pygame.QUIT:
+                    closed_by_user = True
+
+            if self.game.paused:
+                # avoid looping too fast while paused
+                time.sleep(1/self.game.target_fps)
+                continue
+
+            if closed_by_user:
+                logging.info("Game was stopped by user")
+                self.game.running = False
+                self.quit()
+
+            if "debug" in self.game.mode:
+                t0 = time.time()
+                self.draw_wall_zones()
+                timing['draw_dbg'] = time.time() - t0
+
+            # Advance game state by one tick
+            tf_timing = self.game.tick_forward()
+            timing.update(tf_timing)
+
+            # Render the display (flip everything to the display)
+            t0 = time.time()
+            pygame.display.flip()
+            timing['draw'] += time.time() - t0
+
+            if self.game.fps_locked:
+                # Ensure program maintains a target FPS
+                self.clock.tick(self.game.target_fps)
+            else:
+                self.clock.tick() # used in headless mode
+
+            # frame time: source of FPS calculation
+            timing['frame_time'] = time.time() - ft_t0
+            self.game.timing_stats.append(timing)
+
+        # game has finished
+        if self.game.winner is not None:
+            self.show_win_message()
+
+        if close_when_finished:
+            pygame.time.wait(1200)
+            self.quit()
+        else:
+            self.wait_for_window_close()
 
 
     def wait_for_window_close(self):

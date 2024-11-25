@@ -22,7 +22,7 @@ print(f"Minimal turning radius: {game.min_turn_radius}")
 # Random spawn
 game.spawn_player(1, init_pos=(random.randrange(50,750),random.randrange(50,550)), init_angle=random.random()*2*np.pi,
                   player_type=RandomSteeringAIPlayer, min_turn_radius=game.min_turn_radius, safety_factor=1.02,
-                  turn_angles=np.deg2rad([10,80]), straight_lengths=(50., 200.0))
+                  turn_angles_deg=[10,80], straight_lengths=(50., 200.0))
 
 p1 = game.players[0]
 
@@ -35,18 +35,18 @@ max_ticks = 1000
 tick = 0
 game.running = True
 while game.running and tick <= max_ticks:
-    game.draw_wall_zones()
-    game.draw_debug_info()
-    game.flush_display()
-    game.tick_forward(draw=True)
+    game.gui.draw_wall_zones()
+    game.gui.draw_debug_info()
+    game.gui.flush_display()
+    game.tick_forward()
     #p1.draw_turn_circles(game.screen, p1.turn_radius)
-    game.flush_display()
+    game.gui.flush_display()
     tick += 1
 
 if game.running:
     logging.info(f"SUCCESS: {p1} finished without wall collisions!")
 
 game.running = True
-game.wait_for_window_close()
+game.gui.wait_for_window_close()
 
 

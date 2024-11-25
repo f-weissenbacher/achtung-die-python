@@ -8,7 +8,7 @@ from players.player_base import Player
 
 class PlayerActor(pygame.sprite.Sprite):
 
-    def __init__(self, player:Player):
+    def __init__(self, player: Player):
         super(PlayerActor, self).__init__()
 
         self.player = player

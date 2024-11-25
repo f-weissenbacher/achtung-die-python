@@ -1,4 +1,3 @@
-import numpy as np
 from game import AchtungDieKurveGame
 import log
 
@@ -27,7 +26,7 @@ for k in range(1,4):
 for k in range(4,7):
     game.spawn_player(k, player_type=RandomSteeringAIPlayer)
 
-game.run_game_loop(close_when_finished=True)
+game.run_headless_game_loop()
 game.print_scoreboard()
 
 game.print_timing_stats()

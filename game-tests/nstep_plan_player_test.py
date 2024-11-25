@@ -64,15 +64,16 @@ max_ticks = 500
 tick = 0
 game.running = True
 tf_dts = []
+
 while game.running and tick <= max_ticks:
-    game.draw_wall_zones()
+    game.gui.draw_wall_zones()
     #game.draw_debug_info()
-    game.flush_display()
+    game.gui.flush_display()
     tf_t0 = time.time()
     game.tick_forward()
     tf_dts.append(time.time() - tf_t0)
     #p1.draw_turn_circles(game.screen, p1.turn_radius)
-    game.flush_display()
+    game.gui.flush_display()
     #pygame.display.flip()
     tick += 1
 
@@ -100,6 +101,6 @@ game.print_scoreboard()
 
 print("Number of plan  updates", p_ut.num_updates)
 
-game.wait_for_window_close()
+game.gui.wait_for_window_close()
 
 
