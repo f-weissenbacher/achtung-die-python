@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class Player:
     def __init__(self, idx=1, name=None, init_pos=(0., 0.), init_angle=0.0, dist_per_tick=5.0, dphi_per_tick=0.01, radius=2,
                  color=(255, 10, 10), color_name="Red", hole_width=3.0, startblock_length=100.,
-                 min_dist_between_holes=200., max_dist_between_holes=1500.):
+                 min_dist_between_holes=200., max_dist_between_holes=1500., rng_seed=None):
         """
         Base class for Achtung,die Kurve players
 
@@ -46,6 +46,7 @@ class Player:
             startblock_length:
             min_dist_between_holes:
             max_dist_between_holes:
+            rng_seed:
         """
 
         super(Player, self).__init__()
@@ -56,6 +57,7 @@ class Player:
             self.name = name
 
         self.actor = None
+        self.rng = np.random.default_rng(rng_seed)
 
         self.pos = np.array(init_pos, dtype=float)  # x-position in game world (pixel coordinates)
         self.dist_per_tick = dist_per_tick
@@ -118,10 +120,10 @@ class Player:
             # Switch off holes
             return np.inf
         if self.dist_travelled < self.startblock_length:
-            dist = self.startblock_length + self.max_dist_between_holes * np.random.random()
+            dist = self.startblock_length + self.max_dist_between_holes * self.rng.random()
         else:
             width = self.max_dist_between_holes - self.min_dist_between_holes
-            dist = self.min_dist_between_holes + width * np.random.random()
+            dist = self.min_dist_between_holes + width * self.rng.random()
 
         logger.debug(f"Next hole for {self} in {int(dist / self.dist_per_tick)} ticks")
         return dist

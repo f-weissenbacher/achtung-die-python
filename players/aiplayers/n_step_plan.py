@@ -270,7 +270,7 @@ class NStepPlanPlayer(AIPlayer):
             best_plan = best_plans[0]
         else:
             logging.debug(f"{self}: found {num_best_plans} equally good plans, selecting one at random")
-            best_plan = best_plans[np.random.randint(0,num_best_plans)]
+            best_plan = best_plans[self.rng.integers(0, num_best_plans)]
 
         self.best_trails = best_trails
         self.best_plan_score = best_plan_score

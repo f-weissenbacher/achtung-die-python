@@ -52,11 +52,8 @@ class AchtungDieKurveGame:
             ignore_self_collisions (bool):
             rng_seed (int):
         """
-        if rng_seed is not None:
-            self.rng = np.random.default_rng(rng_seed)
-        else:
-            self.rng = np.random.default_rng()
 
+        self.rng = np.random.default_rng(rng_seed)
         self._init_rng_state = self.rng.__getstate__()
         self.rng_seed = rng_seed
 
@@ -144,6 +141,9 @@ class AchtungDieKurveGame:
         x,y = player.pos
         return x < self.game_bounds[0] or x > self.game_bounds[1] or y < self.game_bounds[2] or y > self.game_bounds[3]
 
+    def roll_player_seed(self):
+        return self.rng.integers(0,100000)
+
     def spawn_player(self, idx, init_pos=None, init_angle=None, player_type=Player, **kwargs):
         assert idx in self.valid_player_ids
 
@@ -156,12 +156,17 @@ class AchtungDieKurveGame:
         if init_angle is None:
             init_angle = self._roll_random_angle()
 
+        if self.rng_seed is not None:
+            player_seed = self.roll_player_seed()
+        else:
+            player_seed = None
 
         player_kwargs = dict(idx=idx, init_pos=init_pos, init_angle=init_angle,
                              dist_per_tick=self.dist_per_tick,
                              dphi_per_tick=self.dphi_per_tick,
                              color_name=self.player_color_names[idx],
                              radius=self.player_radius,
+                             rng_seed=player_seed
                              )
 
         if player_type == "human" or player_type in [Player,HumanPlayer]:
