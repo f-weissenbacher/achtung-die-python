@@ -5,6 +5,7 @@ from matplotlib.patches import Arc
 
 import itertools
 
+from players.player_base import PlayerAction
 
 N = 6
 dist_per_tick = 1.0
@@ -22,11 +23,11 @@ for action_set in itertools.combinations_with_replacement("LSR",N):
         for a in plan:
             #print(plan)
             if a == "L":
-                steering = {p.steer_left_key: True, p.steer_right_key: False}
+                steering = PlayerAction.SteerLeft
             elif a == "R":
-                steering = {p.steer_left_key: False, p.steer_right_key: True}
+                steering = PlayerAction.SteerRight
             else:
-                steering = {p.steer_left_key: False, p.steer_right_key: False}
+                steering = PlayerAction.KeepStraight
 
             for k in range(ticks_per_step):
                 p.apply_steering(steering)
@@ -140,6 +141,8 @@ for k, t in enumerate(keyframes):
         ax2.set_ylabel(r"$|\varphi - \varphi_0|$")
 
 #grid_fig.tight_layout()
+
+plt.show()
 
 
 

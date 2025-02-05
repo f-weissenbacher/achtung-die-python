@@ -15,7 +15,7 @@ def run_game(game_settings:dict, agent_ut_info:dict, opponent_settings:list):
         game.spawn_player(idx, player_type=opponent_settings[k]['type'], **opponent_settings[k]['kwargs'])
 
     # Run game
-    game.run_game_loop(close_when_finished=True)
+    game.run_game_loop()
 
     return game
 

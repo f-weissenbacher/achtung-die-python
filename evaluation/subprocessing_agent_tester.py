@@ -14,19 +14,18 @@ from log import setup_colored_logs
 
 setup_colored_logs(logging.WARNING)
 
-import ruamel.yaml as yaml
-
 def run_in_subprocess(run_dir):
     subprocess.run(f"python ./execute_single_run.py {run_dir}", check=True)
 
 
 if __name__ == "__main__":
 
-    num_runs = 10
+    num_runs = 5
+    rng_seed = 123456
 
     game_settings = dict(target_fps=30, game_speed_factor=1.0, run_until_last_player_dies=False,
                      wall_collision_penalty=200., self_collision_penalty=150., player_collision_penalty=100.,
-                     survival_reward=100., ignore_self_collisions=False, rng_seed=12345)
+                     survival_reward=100., ignore_self_collisions=False, rng_seed=rng_seed)
 
     agent_ut_info = {'type': NStepPlanPlayer,
                      'kwargs': dict(num_steps=2, dist_per_step=40.0, plan_update_period=0.15,

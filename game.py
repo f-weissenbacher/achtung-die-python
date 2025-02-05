@@ -9,13 +9,10 @@ from math import pi, sqrt, asin
 
 from collections import defaultdict
 
-from actors.nstep_player_actor import NStepPlanPlayerActor
 from players.player_base import Player, ReasonOfDeath, PlayerAction
 from players.human_player import HumanPlayer
 from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
 from players.misc_players import ScriptedPlayer, FixedActionListPlayer
-
-# Define the enemy object by extending pygame.sprite.Sprite
 
 import colorama
 
@@ -56,8 +53,9 @@ class AchtungDieKurveGame:
             rng_seed (int):
         """
         if rng_seed is not None:
-            np.random.seed(rng_seed)
-        self._rng_seed = rng_seed
+            np.random.seed(rng_seed)  # TODO: Change to using random.Generators?
+
+        self._rng_init_state = np.random.get_state()
 
         if mode in ["gui", "gui-debug", "headless"]:
             self.mode = mode
@@ -416,17 +414,22 @@ class AchtungDieKurveGame:
             logging.info("Game continued")
 
 
+    def scoreboard_as_df(self):
+        sb_dict = {}
+        for p in self.players:
+            sb_dict[p.idx] = {'Name': str(p), 'Score': self.scoreboard[p.idx], 'Distance': p.dist_travelled,
+                              'Total Reward': p.total_reward}
+
+        scoreboard = pd.DataFrame.from_dict(sb_dict, orient='index')
+        scoreboard.sort_values(by='Score', inplace=True, ascending=False)
+        scoreboard = scoreboard.reset_index(drop=True)
+        scoreboard.index += 1
+        return scoreboard
+
+
     def print_scoreboard(self, pretty=True):
         if pretty:
-            sb_dict = {}
-            for p in self.players:
-                sb_dict[p.idx] = {'Name': str(p), 'Score': self.scoreboard[p.idx], 'Distance': p.dist_travelled,
-                                  'Total Reward': p.total_reward}
-
-            scoreboard = pd.DataFrame.from_dict(sb_dict, orient='index')
-            scoreboard.sort_values(by='Score', inplace=True, ascending=False)
-            scoreboard = scoreboard.reset_index(drop=True)
-            scoreboard.index += 1
+            scoreboard = self.scoreboard_as_df()
             with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
                 scoreboard_txt = str(scoreboard)
 
