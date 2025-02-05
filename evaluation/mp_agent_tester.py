@@ -1,4 +1,5 @@
 """Multiprocessing Agent Tester Script"""
+import copy
 import logging
 import multiprocessing
 import time
@@ -48,15 +49,19 @@ def benchmark_one_vs_five(num_runs=5, num_workers=4, batch_seed=None):
     t0 = time.time()
 
 
-    # Simplest case: num_runs repetitions of the same settings
-    run_settings_batch = [(game_settings, agent_ut_info, opponent_settings)] * num_runs
+    if batch_seed is None:
+        # Simplest case: num_runs repetitions of the same settings
+        run_settings_batch = [(game_settings, agent_ut_info, opponent_settings)] * num_runs
 
-    if batch_seed is not None:
-        # Better: set random seeds
+    else:
+        # Extended functionality: set random seeds
         rng = np.random.default_rng(batch_seed)
         rng_seeds = rng.integers(1, 10000, num_runs)
-        for k, seed in enumerate(rng_seeds):
-            run_settings_batch[k][0]["rng_seed"] = seed
+        run_settings_batch = []
+        for seed in rng_seeds:
+            run_gs = copy.deepcopy(game_settings)
+            run_gs["rng_seed"] = seed
+            run_settings_batch += [(run_gs, agent_ut_info, opponent_settings)]
 
 
     with multiprocessing.Pool(processes=num_workers) as pool:
@@ -66,7 +71,9 @@ def benchmark_one_vs_five(num_runs=5, num_workers=4, batch_seed=None):
     scoreboards = []
     for run_idx, fg in enumerate(finished_games):
         print(f"==== Run {run_idx+1} ====")
-        print(fg.rng_seed)
+        #print("Initial RNG state: ", fg._init_rng_state)
+        if fg.rng_seed is not None:
+            print("Initial RNG seed: ", fg.rng_seed)
         fg.print_scoreboard()
         scoreboards.append(fg.scoreboard_as_df())
 
@@ -78,6 +85,7 @@ def benchmark_one_vs_five(num_runs=5, num_workers=4, batch_seed=None):
     #print(batch_results)
 
     # Average scores over multiple
+    print()
     aut_results = batch_results.loc[batch_results["Name"].str.contains('Agent under Test')]
     aut_results = aut_results.reset_index()
     print(aut_results)
@@ -86,18 +94,19 @@ def benchmark_one_vs_five(num_runs=5, num_workers=4, batch_seed=None):
     aut_averages.rename({"Rank": "Average Rank", "Score": "Average Score", "Distance":"Average Distance",
                                  "Total Reward": "Average Reward"}, inplace=True)
     aut_averages["Win Percentage"] = 100 * np.sum(aut_results["Rank"] == 1) / num_runs
+    print()
+    print(f"Win-Statistics for Agent under Test of type {agent_ut_info['type']}:")
     print(aut_averages)
 
-    print(f"\nTotal runtime for {num_runs} runs: {dt:.3f} seconds. Time per run {dt/num_runs:.3f} seconds")
-
-
+    print(f"\nTotal runtime for {num_runs} runs: {dt:.3f} seconds. Time per run {dt/num_runs:.3f} seconds.")
+    print(f"Number of workers: {num_workers}")
 
 
 
 if __name__ == "__main__":
     import numpy as np
     #np.random.seed(12345)
-    benchmark_one_vs_five(num_runs=50, num_workers=32, batch_seed=12345)
+    benchmark_one_vs_five(num_runs=3, num_workers=4, batch_seed=12345)
 
 
 

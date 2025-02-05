@@ -53,9 +53,12 @@ class AchtungDieKurveGame:
             rng_seed (int):
         """
         if rng_seed is not None:
-            np.random.seed(rng_seed)  # TODO: Change to using random.Generators?
+            self.rng = np.random.default_rng(rng_seed)
+        else:
+            self.rng = np.random.default_rng()
 
-        self._rng_init_state = np.random.get_state()
+        self._init_rng_state = self.rng.__getstate__()
+        self.rng_seed = rng_seed
 
         if mode in ["gui", "gui-debug", "headless"]:
             self.mode = mode
@@ -112,15 +115,14 @@ class AchtungDieKurveGame:
             self.gui = AchtungDieKurveGUI(self)
 
 
-    @staticmethod
-    def _roll_random_angle():
-        return 2*pi*np.random.rand()
+    def _roll_random_angle(self):
+        return 2*pi*self.rng.random()
 
     def _roll_valid_start_position(self, max_attempts=100):
         attempt_counter = 0
         while attempt_counter < max_attempts:
-            x = self.min_turn_radius + (self.screen_width - 2 * self.min_turn_radius) * np.random.rand()
-            y = self.min_turn_radius + (self.screen_height - 2 * self.min_turn_radius) * np.random.rand()
+            x = self.min_turn_radius + (self.screen_width - 2 * self.min_turn_radius) * self.rng.random()
+            y = self.min_turn_radius + (self.screen_height - 2 * self.min_turn_radius) * self.rng.random()
 
             for p in self.players:
                 dist = sqrt((x - p.pos[0])**2 + (y - p.pos[1])**2)
