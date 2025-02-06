@@ -24,7 +24,7 @@ for k in range(1,3):
 for k in range(3,7):
     game.spawn_player(k, player_type=RandomSteeringAIPlayer)
 
-game.run_game_loop(close_when_finished=True)
+game.run_game_loop()
 game.print_scoreboard()
 
 game.print_timing_stats()
