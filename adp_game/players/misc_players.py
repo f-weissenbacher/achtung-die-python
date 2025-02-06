@@ -1,6 +1,6 @@
 import logging
 
-from players.player_base import Player, PlayerAction
+from adp_game.players.player_base import Player, PlayerAction
 
 logger = logging.getLogger(__name__)
 

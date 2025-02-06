@@ -9,10 +9,10 @@ from math import pi, sqrt, asin
 
 from collections import defaultdict
 
-from players.player_base import Player, ReasonOfDeath, PlayerAction
-from players.human_player import HumanPlayer
-from players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
-from players.misc_players import ScriptedPlayer, FixedActionListPlayer
+from adp_game.players.player_base import Player, ReasonOfDeath, PlayerAction
+from adp_game.players.human_player import HumanPlayer
+from adp_game.players.aiplayers import AIPlayer, WallAvoidingAIPlayer, RandomSteeringAIPlayer, NStepPlanPlayer
+from adp_game.players.misc_players import ScriptedPlayer, FixedActionListPlayer
 
 import colorama
 
@@ -206,10 +206,10 @@ class AchtungDieKurveGame:
         if self.gui_enabled:
             # Attach actor to player
             if isinstance(p, NStepPlanPlayer):
-                from actors.nstep_player_actor import NStepPlanPlayerActor
+                from adp_game.actors import NStepPlanPlayerActor
                 p.actor = NStepPlanPlayerActor(p)
             else:
-                from actors.player_actor import PlayerActor
+                from adp_game.actors import PlayerActor
                 p.actor = PlayerActor(p)
 
         return p

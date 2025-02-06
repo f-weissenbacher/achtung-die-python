@@ -1,11 +1,7 @@
-import numpy as np
-from game import AchtungDieKurveGame
-import logging
-import log
+from adp_game.game import AchtungDieKurveGame
+from adp_game import log
 
-from players.aiplayers import RandomSteeringAIPlayer, WallAvoidingAIPlayer, NStepPlanPlayer
-
-import random
+from adp_game.players.aiplayers import RandomSteeringAIPlayer, NStepPlanPlayer
 
 #random.seed(1234)
 

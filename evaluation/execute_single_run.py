@@ -3,7 +3,7 @@ import os
 import pickle as pkl
 
 def run_game(game_settings:dict, agent_ut_info:dict, opponent_settings:list):
-    from game import AchtungDieKurveGame
+    from adp_game.game import AchtungDieKurveGame
     game = AchtungDieKurveGame(mode='headless', **game_settings)
 
     # Spawn agent under test

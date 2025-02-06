@@ -1,4 +1,4 @@
-from players.player_base import *
+from adp_game.players.player_base import *
 
 
 class AIPlayer(Player):

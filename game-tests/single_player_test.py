@@ -1,8 +1,5 @@
 import logging
-import numpy as np
-from game import AchtungDieKurveGame
-from players.aiplayers import WallAvoidingAIPlayer
-import pygame
+from adp_game.game import AchtungDieKurveGame
 
 logging.basicConfig(level=logging.DEBUG,
                     format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")

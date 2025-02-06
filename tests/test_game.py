@@ -1,13 +1,13 @@
-from unittest import TestCase
+import unittest
 
-from game import AchtungDieKurveGame
-from players import Player
-from players.aiplayers import RandomSteeringAIPlayer
+from adp_game.game import AchtungDieKurveGame
+from adp_game.players import Player
+from adp_game.players.aiplayers import RandomSteeringAIPlayer
 
 import numpy as np
 
 
-class TestAchtungDieKurveGame(TestCase):
+class TestAchtungDieKurveGame(unittest.TestCase):
     def test_repeatability(self):
         rng_seed = 123456
 
@@ -117,12 +117,15 @@ class TestAchtungDieKurveGame(TestCase):
         game.initialize_players(ids, positions)
         self.assertListEqual([game.players[k].idx for k in range(3)], ids)
 
-
+    @unittest.skip("Not yet implemented")
     def test_move_players(self):
         self.fail()
+        #self.skip()
 
+    @unittest.skip("Not yet implemented")
     def test_tick_forward(self):
         self.fail()
 
+    @unittest.skip("Not yet implemented")
     def test_reverse_tick(self):
         self.fail()

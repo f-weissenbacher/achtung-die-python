@@ -3,10 +3,8 @@ import random
 
 import numpy as np
 
-from game import AchtungDieKurveGame
-from players.aiplayers import WallAvoidingAIPlayer, RandomSteeringAIPlayer
-
-import pygame
+from adp_game.game import AchtungDieKurveGame
+from adp_game.players.aiplayers import RandomSteeringAIPlayer
 
 logging.basicConfig(level=logging.DEBUG,
                     format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")

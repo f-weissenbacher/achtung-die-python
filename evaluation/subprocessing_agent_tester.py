@@ -6,11 +6,7 @@ import time
 import os
 import pickle as pkl
 
-import numpy as np
-from game import AchtungDieKurveGame
-from players.aiplayers import *
-
-from log import setup_colored_logs
+from adp_game.log import setup_colored_logs
 
 setup_colored_logs(logging.WARNING)
 

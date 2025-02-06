@@ -1,9 +1,7 @@
-from game import AchtungDieKurveGame
-import log
+from adp_game.game import AchtungDieKurveGame
+from adp_game import log
 
-from players.aiplayers import RandomSteeringAIPlayer, NStepPlanPlayer
-
-import random
+from adp_game.players.aiplayers import RandomSteeringAIPlayer, NStepPlanPlayer
 
 #random.seed(1234)
 

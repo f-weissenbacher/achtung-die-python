@@ -1,5 +1,5 @@
 import sys
-from game import AchtungDieKurveGame
+from adp_game.game import AchtungDieKurveGame
 
 game = AchtungDieKurveGame(mode="headless")
 

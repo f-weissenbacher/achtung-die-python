@@ -1,13 +1,11 @@
 """Multiprocessing Agent Tester Script"""
 import copy
-import logging
 import multiprocessing
 import time
 import numpy as np
 import pandas as pd
 
-from game import AchtungDieKurveGame
-from players.aiplayers import *
+from adp_game.game import AchtungDieKurveGame
 
 
 def execute_single_run(game_settings, agent_under_test:dict, opponent_settings:list):

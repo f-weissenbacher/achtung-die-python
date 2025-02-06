@@ -1,9 +1,11 @@
 import unittest
 
+from adp_game.players.player_base import PlayerAction
+
 
 class TestPlayerSteering(unittest.TestCase):
     def test_circle_motion(self):
-        from players.player_base import Player
+        from adp_game.players.player_base import Player
         import numpy as np
 
         init_pos = np.array([0., 0.])
@@ -12,9 +14,9 @@ class TestPlayerSteering(unittest.TestCase):
 
         n = int(360 / 5.0)
 
-        steering = {p.steer_left_key: False, p.steer_right_key: True}
+        #steering = {p.steer_left_key: False, p.steer_right_key: True}
         for k in range(n):
-            p.apply_steering(steering)
+            p.apply_steering(PlayerAction.SteerRight)
             p.move()
 
         end_pos = p.pos
@@ -26,7 +28,7 @@ class TestPlayerSteering(unittest.TestCase):
 
 
     def test_wave_motion(self):
-        from players.player_base import Player
+        from adp_game.players.player_base import Player
         import numpy as np
 
         init_pos = (0., 0.)
@@ -36,15 +38,13 @@ class TestPlayerSteering(unittest.TestCase):
         n = int(90.0/5.0)
 
         # Steer right for n timesteps
-        steering = {p.steer_left_key: False, p.steer_right_key: True}
         for k in range(n):
-            p.apply_steering(steering)
+            p.apply_steering(PlayerAction.SteerRight)
             p.move()
 
         # steer left for n timesteps
-        steering = {p.steer_left_key: True, p.steer_right_key: False}
         for k in range(n):
-            p.apply_steering(steering)
+            p.apply_steering(PlayerAction.SteerLeft)
             p.move()
 
         end_pos = (p.pos[0], p.pos[1])

@@ -1,11 +1,11 @@
 import logging
-import log
+from adp_game import log
 import random
 
 import numpy as np
 
-from game import AchtungDieKurveGame
-from players.aiplayers import WallAvoidingAIPlayer
+from adp_game.game import AchtungDieKurveGame
+from adp_game.players.aiplayers import WallAvoidingAIPlayer
 
 import pygame
 

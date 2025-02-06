@@ -2,8 +2,8 @@ import pygame
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
-from actors.player_actor import PlayerActor
-from players.aiplayers import NStepPlanPlayer
+from adp_game.actors.player_actor import PlayerActor
+from adp_game.players.aiplayers import NStepPlanPlayer
 
 
 class NStepPlanPlayerActor(PlayerActor):

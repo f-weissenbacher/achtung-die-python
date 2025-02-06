@@ -1,18 +1,15 @@
-import copy
 import itertools
 import logging
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
-from players.player_base import PlayerAction, Player
-from players.misc_players import DummyPlayer
-from players.aiplayers.aiplayer_base import AIPlayer
+from adp_game.players.player_base import PlayerAction
+from adp_game.players.misc_players import DummyPlayer
+from adp_game.players.aiplayers.aiplayer_base import AIPlayer
 
 import shapely
 
 # DEBUG:
-from debugging_helpers import plot_shapely_object
 
 num_update_ticks = 0
 

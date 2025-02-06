@@ -2,11 +2,8 @@ import logging
 import random
 import numpy as np
 
-from game import AchtungDieKurveGame
+from adp_game.game import AchtungDieKurveGame
 from players import HumanPlayer
-from players.aiplayers import *
-
-import pygame
 
 logging.basicConfig(level=logging.DEBUG,
                     format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")

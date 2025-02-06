@@ -1,5 +1,5 @@
 import logging
-import log
+from adp_game import log
 #import random
 import time
 
@@ -14,8 +14,8 @@ np.random.seed(seed)
 
 import pygame
 
-from game import AchtungDieKurveGame
-from players.aiplayers import NStepPlanPlayer, WallAvoidingAIPlayer
+from adp_game.game import AchtungDieKurveGame
+from adp_game.players.aiplayers import NStepPlanPlayer, WallAvoidingAIPlayer
 
 log_level = logging.DEBUG
 log_format = "%(relativeCreated)d %(levelname)s [%(module)s.%(funcName)s:%(lineno)d] - %(message)s"

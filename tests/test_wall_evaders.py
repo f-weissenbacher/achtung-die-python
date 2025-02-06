@@ -1,10 +1,9 @@
 from unittest import TestCase
 
-from game import AchtungDieKurveGame
-from players.aiplayers import WallAvoidingAIPlayer
+from adp_game.players.aiplayers import WallAvoidingAIPlayer
 import numpy as np
 
-from players.player_base import PlayerAction
+from adp_game.players.player_base import PlayerAction
 
 
 def mock_game_state(p:WallAvoidingAIPlayer):

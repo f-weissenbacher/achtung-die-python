@@ -1,4 +1,4 @@
-from players.player_base import Player
+from adp_game.players.player_base import Player
 
 class HumanPlayer(Player):
     def __init__(self, name=None, **player_kwargs):

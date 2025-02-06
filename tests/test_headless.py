@@ -6,7 +6,7 @@ class TestHeadlessMode(TestCase):
 
         self.assertFalse('pygame' in sys.modules, "Pre import of AchtungDieKurveGame, pygame should not be included")
 
-        from game import AchtungDieKurveGame
+        from adp_game.game import AchtungDieKurveGame
 
         game = AchtungDieKurveGame(mode="headless")
 

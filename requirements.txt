@@ -5,3 +5,4 @@ shapely>=2
 coloredlogs
 matplotlib
 pygame[gui]
+geopandas

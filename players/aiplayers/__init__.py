@@ -1,3 +1,0 @@
-from players.aiplayers.aiplayer_base import AIPlayer
-from players.aiplayers.wall_evaders import WallAvoidingAIPlayer, RandomSteeringAIPlayer
-from players.aiplayers.n_step_plan import NStepPlanPlayer

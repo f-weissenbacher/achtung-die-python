@@ -1,8 +1,7 @@
 import logging
 import numpy as np
-from game import AchtungDieKurveGame
+from adp_game.game import AchtungDieKurveGame
 from players.misc_players import FixedActionListPlayer
-import pygame
 from players.player_base import PlayerAction
 
 def discretize_movement_plan(plan, game:AchtungDieKurveGame):

@@ -1,11 +1,9 @@
 import logging
 import time
 
-import numpy as np
-from game import AchtungDieKurveGame
-from players.aiplayers import *
+from adp_game.game import AchtungDieKurveGame
 
-from log import setup_colored_logs
+from adp_game.log import setup_colored_logs
 
 setup_colored_logs(logging.WARNING)
 
