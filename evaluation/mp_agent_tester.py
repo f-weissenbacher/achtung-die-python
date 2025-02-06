@@ -7,6 +7,8 @@ import pandas as pd
 
 from adp_game.game import AchtungDieKurveGame
 
+from adp_game.players.aiplayers import NStepPlanPlayer, RandomSteeringAIPlayer
+
 
 def execute_single_run(game_settings, agent_under_test:dict, opponent_settings:list):
 
