@@ -1,8 +1,6 @@
-from players import Player
+from adp_game.players.player_base import Player, PlayerAction
 import numpy as np
 import matplotlib.pyplot as plt
-
-from players.player_base import PlayerAction
 
 p = Player(1, "manual control", init_pos=(0, 0), dist_per_tick=1.0, startblock_length=500., dphi_per_tick=np.deg2rad(5.0))
 

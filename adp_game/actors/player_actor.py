@@ -4,7 +4,7 @@ import pygame
 from pygame.locals import RLEACCEL
 import pygame.freetype  # Import the freetype module.
 
-from players.player_base import Player
+from adp_game.players.player_base import Player
 
 class PlayerActor(pygame.sprite.Sprite):
 

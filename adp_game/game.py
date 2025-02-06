@@ -106,7 +106,7 @@ class AchtungDieKurveGame:
             self.fps_locked = False
             self.gui = None
         else:
-            from gui import AchtungDieKurveGUI
+            from adp_game.gui import AchtungDieKurveGUI
             # Enable GUI. Spawn game window
             self.fps_locked = True
             self.gui = AchtungDieKurveGUI(self)

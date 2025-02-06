@@ -5,8 +5,8 @@ import pygame.freetype  # Import the freetype module.
 
 import logging
 
-from players import HumanPlayer
-from players.player_base import PlayerAction
+from adp_game.players import HumanPlayer
+from adp_game.players.player_base import PlayerAction
 
 
 class AchtungDieKurveGUI:
