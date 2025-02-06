@@ -97,6 +97,8 @@ def benchmark_one_vs_five(num_runs=5, num_workers=4, batch_seed=None):
     print(f"\nTotal runtime for {num_runs} runs: {dt:.3f} seconds. Time per run {dt/num_runs:.3f} seconds.")
     print(f"Number of workers: {num_workers}")
 
+    return aut_averages["Win Percentage"]
+
 
 
 if __name__ == "__main__":
