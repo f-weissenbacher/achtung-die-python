@@ -9,9 +9,9 @@ import pandas as pd
 from game import AchtungDieKurveGame
 from players.aiplayers import *
 
-from log import setup_colored_logs
+#from log import setup_colored_logs
 
-setup_colored_logs(logging.WARNING)
+#setup_colored_logs(logging.WARNING)
 
 
 def execute_single_run(game_settings, agent_under_test:dict, opponent_settings:list):
@@ -106,7 +106,7 @@ def benchmark_one_vs_five(num_runs=5, num_workers=4, batch_seed=None):
 if __name__ == "__main__":
     import numpy as np
     #np.random.seed(12345)
-    benchmark_one_vs_five(num_runs=3, num_workers=4, batch_seed=12345)
+    benchmark_one_vs_five(num_runs=1000, num_workers=4, batch_seed=12345)
 
 
 
