@@ -1,8 +1,7 @@
-from players import Player
+from adp_game.players.player_base import Player, PlayerAction
 import numpy as np
 import matplotlib.pyplot as plt
 
-from players.player_base import PlayerAction
 
 dphi_per_tick = np.deg2rad(5.0)
 

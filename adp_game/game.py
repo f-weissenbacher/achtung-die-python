@@ -142,7 +142,7 @@ class AchtungDieKurveGame:
         return x < self.game_bounds[0] or x > self.game_bounds[1] or y < self.game_bounds[2] or y > self.game_bounds[3]
 
     def roll_player_seed(self):
-        return self.rng.integers(0,100000)
+        return self.rng.integers(0, 100000)
 
     def spawn_player(self, idx, init_pos=None, init_angle=None, player_type=Player, **kwargs):
         assert idx in self.valid_player_ids

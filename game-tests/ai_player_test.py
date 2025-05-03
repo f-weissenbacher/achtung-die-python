@@ -19,7 +19,7 @@ print(f"Minimal turning radius: {game.min_turn_radius}")
 #                  min_turn_radius=game.min_turn_radius, safety_factor=1.05)
 
 # Random spawn
-game.spawn_player(1, init_pos=(random.randrange(50,750),random.randrange(50,550)), init_angle=random.random()*2*np.pi, player_type=WallAvoidingAIPlayer,
+game.spawn_player(2, init_pos=(random.randrange(50,750),random.randrange(50,550)), init_angle=random.random()*2*np.pi, player_type=WallAvoidingAIPlayer,
                   min_turn_radius=game.min_turn_radius, safety_factor=1.02)
 
 p1 = game.players[0]

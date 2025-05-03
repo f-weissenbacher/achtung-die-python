@@ -3,7 +3,8 @@ import random
 import numpy as np
 
 from adp_game.game import AchtungDieKurveGame
-from players import HumanPlayer
+from adp_game.players import HumanPlayer
+from adp_game.players.aiplayers import RandomSteeringAIPlayer, NStepPlanPlayer
 
 logging.basicConfig(level=logging.DEBUG,
                     format="%(relativeCreated)d %(levelname)s [%(funcName)s:%(lineno)d] - %(message)s")
@@ -25,9 +26,10 @@ enemy_ai_type = "n-step"
 if enemy_ai_type == "random":
     # Spawn Random Steering AI players
     for idx in [1,2,3,5]:
-         game.spawn_player(idx, init_pos=(random.randrange(50,750),random.randrange(50,550)), init_angle=random.random()*2*np.pi,
+        game.spawn_player(idx, init_pos=(random.randrange(50,750),random.randrange(50,550)), init_angle=random.random()*2*np.pi,
                            player_type=RandomSteeringAIPlayer, min_turn_radius=game.min_turn_radius, safety_factor=1.02,
                            turn_angles=np.deg2rad([10,80]), straight_lengths=(50., 200.0))
+
 
 elif enemy_ai_type == "n-step":
     # Spawn Heuristic-based AI players (N-Step)

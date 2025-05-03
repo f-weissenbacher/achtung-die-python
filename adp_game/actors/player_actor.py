@@ -5,6 +5,7 @@ from pygame.locals import RLEACCEL
 import pygame.freetype  # Import the freetype module.
 
 from adp_game.players.player_base import Player
+from adp_game.gui import AchtungDieKurveGUI
 
 class PlayerActor(pygame.sprite.Sprite):
 
@@ -13,10 +14,10 @@ class PlayerActor(pygame.sprite.Sprite):
 
         self.player = player
         #self._attach_to_player()
-        self.color = self.player.color
+        self.player.color = AchtungDieKurveGUI.player_colors[self.player.idx][1]
 
         self.brush = pygame.Surface((2 * self.player.radius, 2 * self.player.radius))
-        pygame.draw.circle(self.brush, self.player.color, (self.player.radius, self.player.radius), self.player.radius, 0)
+        pygame.draw.circle(self.brush, self.color, (self.player.radius, self.player.radius), self.player.radius, 0)
         self.brush.set_colorkey((0, 0, 0), RLEACCEL)  # set transparent color
 
 
@@ -26,6 +27,9 @@ class PlayerActor(pygame.sprite.Sprite):
     # def _detach_from_player(self):
     #     self.player.actor = None
 
+    @property
+    def color(self):
+        return self.player.color
 
     def draw(self, surface):
         """ Draw on surface """
